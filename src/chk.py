@@ -23,6 +23,7 @@ class SysSte:
     data: ChkInfo
     vec: ChkInfo
     logic: ChkInfo
+    model: ChkInfo
 
 
 def _parseVer(v: str):
@@ -33,6 +34,9 @@ def ver() -> ChkInfo:
     try:
         import re
         verL = envs.version
+
+        if envs.offline:
+            return ChkInfo(True, [verL, '(Offline - version check skipped)'])
 
         url = "https://github.com/RazgrizHsu/immich-deduper/blob/main/pyproject.toml"
 
@@ -154,6 +158,9 @@ def mkitData() -> ChkInfo:
 
 def immichLogic() -> ChkInfo:
     try:
+        if envs.offline:
+            return ChkInfo(True, '(Offline - logic check skipped)')
+
         checks = [
             (immich.checkLogicDelete(), "Delete logic"),
             (immich.checkLogicRestore(), "Restore logic"),
@@ -181,6 +188,38 @@ def immichLogic() -> ChkInfo:
 
 
 
+def model() -> ChkInfo:
+    try:
+        from torchvision.models import ResNet152_Weights
+
+        weights = ResNet152_Weights.DEFAULT
+        url = weights.url
+        filename = url.split('/')[-1]
+
+        model_dir = os.path.join(envs.mkitData, 'models', 'checkpoints')
+        local_path = os.path.join(model_dir, filename)
+
+        if os.path.exists(local_path):
+            return ChkInfo(True, ['Model weights found locally', f'Path: {local_path}'])
+
+        if envs.offline:
+            return ChkInfo(False, [
+                'Offline mode enabled but model weights not found',
+                f'Please download to: {local_path}',
+                f'Download URL: {url}'
+            ])
+
+        try:
+            import imgs
+            imgs.getModel()
+            return ChkInfo(True, ['Model weights downloaded successfully'])
+        except Exception as e:
+            return ChkInfo(False, ['Failed to download model weights', str(e)])
+
+    except Exception as e:
+        return ChkInfo(False, ['Model check failed', str(e)])
+
+
 def checkSystem() -> SysSte:
     return SysSte(
         ver=ver(),
@@ -188,5 +227,6 @@ def checkSystem() -> SysSte:
         path=immichPath(),
         data=mkitData(),
         vec=testVec(),
-        logic=immichLogic()
+        logic=immichLogic(),
+        model=model()
     )

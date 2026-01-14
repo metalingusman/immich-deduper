@@ -91,6 +91,17 @@ def layout():
                                 ], className="fw-semibold")
                             ], className=f"row mb-3 p-2 rounded chk-path"),
 
+                            htm.Div([
+                                htm.Div([
+                                    htm.I(),
+                                    htm.Small("ResNet152 Model", className="text-muted")
+                                ], className="d-flex align-items-center"),
+                                htm.Div([
+                                    htm.Span("Feature Extraction Weights", className="fw-semibold me-2"),
+                                    htm.Span(className="small")
+                                ], className="fw-semibold")
+                            ], className=f"row mb-3 p-2 rounded chk-model"),
+
                         ], className="card-system-cfgs")
                     ])
                 ], className="border-0 shadow-sm")

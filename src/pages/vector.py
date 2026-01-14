@@ -206,7 +206,12 @@ def vec_RunModal(nclk_proc, nclk_clear, photoQ, dta_now, dta_cnt, dta_mdl, dta_t
     lg.info(f"[vec] trig[{trgId}] clk[{nclk_proc}/{nclk_clear}] tsk[{tsk}]")
 
     if trgId == K.btnDoVec:
-        if cnt.ass <= 0:
+        import chk
+        modelChk = chk.model()
+        if not modelChk.ok:
+            errMsg = modelChk.msg if isinstance(modelChk.msg, str) else '\n'.join(modelChk.msg)
+            nfy.error(f"Model check failed: {errMsg}")
+        elif cnt.ass <= 0:
             nfy.error("No asset data to process")
         else:
             mdl.id = ks.pg.vector

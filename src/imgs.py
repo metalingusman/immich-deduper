@@ -27,8 +27,6 @@ from conf import envs
 
 lg = log.get(__name__)
 
-base_model = resnet152(weights=ResNet152_Weights.DEFAULT)
-
 class FeatureExtractor(torch.nn.Module):
     def __init__(self, base_model):
         super(FeatureExtractor, self).__init__()
@@ -42,9 +40,20 @@ class FeatureExtractor(torch.nn.Module):
         return x.view(x.size(0), -1)
 
 
-model = FeatureExtractor(base_model)
-model = model.to(conf.device)
-model.eval()
+_model = None
+
+def getModel():
+    global _model
+    if _model is None:
+        model_dir = os.path.join(envs.mkitData, 'models')
+        os.makedirs(model_dir, exist_ok=True)
+        torch.hub.set_dir(model_dir)
+
+        base_model = resnet152(weights=ResNet152_Weights.DEFAULT)
+        _model = FeatureExtractor(base_model)
+        _model = _model.to(conf.device)
+        _model.eval()
+    return _model
 
 def getOptimalBatchSize() -> int:
     import db
@@ -99,7 +108,7 @@ def extractFeatures(image) -> np.ndarray:
     image_tensor = transform(image).unsqueeze(0)
     image_tensor = image_tensor.to(conf.device)
     with torch.no_grad():
-        features = model(image_tensor).squeeze(0)
+        features = getModel()(image_tensor).squeeze(0)
 
     feature_length = features.shape[0]
     if feature_length != 2048:
@@ -140,7 +149,7 @@ def extractFeaturesBatch(images: List[Image.Image]) -> List[np.ndarray]:
         else:
             batch_tensor = batch_tensor.to(conf.device)
 
-        with torch.no_grad(): features_batch = model(batch_tensor)
+        with torch.no_grad(): features_batch = getModel()(batch_tensor)
 
         # Fix: squeeze removes batch dim when size=1, causing 1D output
         if len(features_batch.shape) == 1:

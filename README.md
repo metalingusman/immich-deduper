@@ -27,7 +27,7 @@ Find and remove similar/duplicate images using deep learning.
 - **Safe Deletion**: Removed photos go to Immich trash, fully recoverable
 
 
-## Preivew
+## Preview
 
 <p align="center">
 <img src="docs/intro.jpg" alt="preview" />
@@ -154,6 +154,12 @@ When Deduper starts up, it performs several system checks as shown below:
 
 If you encounter any startup errors or version mismatches, follow the update instructions above or check the logs for detailed error information.
 
+### **Why Deduper Connects to the Internet:**
+- **Version Check**: Compares local version with GitHub to notify you of updates
+- **Immich Logic Verification**: Validates that Deduper's delete/restore operations match Immich's current implementation, preventing potential data corruption from API changes
+
+For air-gapped environments, see [Offline Mode](#offline-mode).
+
 ---
 
 ## Installation & Setup
@@ -245,10 +251,11 @@ Using Docker Compose is the easiest installation method, automatically including
 
    Choose the appropriate `.env` file based on your setup and modify:
    - `PSQL_HOST`: Database connection (service name for same-host, IP address for different-host)
-   - `IMMICH_PATH`: Path to your Immich upload directory  
+   - `IMMICH_PATH`: Path to your Immich upload directory
    - `IMMICH_THUMB`: (Optional) Path for separate thumbnail directory (requires additional volume mount)
    - `DEDUP_DATA`: Directory for Deduper data storage
    - `QDRANT_URL`: (Optional) Custom Qdrant database URL for non-Docker environments or custom container setups
+   - `OFFLINE`: (Optional) Set to `true` for air-gapped environments (see [Offline Mode](#offline-mode))
 
 3. **Create Docker Network (Same-host only)**
 
@@ -368,6 +375,43 @@ For custom environments and development needs.
    ```bash
    python -m src.app
    ```
+
+---
+
+## Offline Mode
+
+For air-gapped environments without internet access, Deduper supports offline operation.
+
+**Setup Steps:**
+
+1. **Download Model Weights** (on a machine with internet)
+   ```bash
+   # Using the provided script (downloads to project_root/data/models/checkpoints/)
+   python scripts/download-model.py
+
+   # Or specify custom path via environment variable
+   DEDUP_DATA=/your/path python scripts/download-model.py
+
+   # Or manually download ResNet152 weights
+   # Check the download URL from: python -c "from torchvision.models import ResNet152_Weights; print(ResNet152_Weights.DEFAULT.url)"
+   ```
+
+2. **Transfer Files to Offline Environment**
+   - Copy `data/models/` directory (or your custom `DEDUP_DATA/models/`) to the offline machine's `DEDUP_DATA/models/`
+
+3. **Enable Offline Mode**
+   ```bash
+   # In your .env file
+   OFFLINE=true
+   ```
+
+**What Offline Mode Does:**
+- Skips GitHub version checks
+- Skips Immich logic verification
+- Uses locally cached model weights
+- All core functionality remains available
+
+**Note:** In offline mode, you are responsible for ensuring version compatibility between Deduper and Immich.
 
 ---
 

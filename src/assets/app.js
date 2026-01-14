@@ -73,7 +73,7 @@ function onFetchedChk( loading, data ){
 	let sc = document.querySelector('.card-system-cfgs')
 	if( sc ) {
 
-		let keys = ['logic', 'path', 'data', 'psql', 'vec']
+		let keys = ['logic', 'path', 'data', 'psql', 'vec', 'model']
 
 		for( let idx in keys ) {
 			let k = keys[idx]
@@ -124,15 +124,20 @@ function onFetchedChk( loading, data ){
 			}
 
 			if( !data.ver.ok ) {
-
 				let msg = data.ver.msg.join( '\n' )
-				notify.load( msg, 'warn' ).run( 30000 )
+				let isNewVer = msg.includes('New version')
 
-				sp.innerText = `please update`
+				if( isNewVer ) {
+					Nfy.warn( msg, 10000 )
+				} else {
+					notify.load( msg, 'warn' ).run( 30000 )
+				}
+
+				sp.innerText = data.ver.msg[0]
 				sp.classList.remove('info',`second`)
 				sp.classList.add('warn')
 			} else {
-				sp.innerText =`ver:${data.ver.msg[0]}`
+				sp.innerText = `ver:${data.ver.msg[0]}`
 			}
 
 

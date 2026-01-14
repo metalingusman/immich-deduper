@@ -254,7 +254,7 @@ def pathFromRoot(path):
 # envs
 #------------------------------------------------------------------------
 class envs:
-    version='0.1.15'
+    version='0.1.16'
     isDev = False if isDock else bool(os.getenv('IsDev', False))
     isDevUI = False if isDock else bool(os.getenv('IsDevUI', False))
     isDock = False if not isDock else True
@@ -267,6 +267,7 @@ class envs:
     psqlUser:str = os.getenv('PSQL_USER','')
     psqlPass:str = os.getenv('PSQL_PASS','')
     mkitPort:str = os.getenv('DEDUP_PORT', '8086')
+    offline:bool = os.getenv('OFFLINE', 'false').lower() == 'true'
 
     if os.getcwd().startswith(os.path.join(pathRoot, 'tests')):
         mkitData = os.path.join(pathRoot, 'data/')
