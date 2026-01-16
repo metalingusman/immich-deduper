@@ -1,6 +1,7 @@
 from dsh import dash, htm, dcc, cbk, dbc, inp, out, ste, getTrgId, noUpd
 from util import log
 from mod import models, tskSvc
+from ui import cardSets
 import db
 from conf import ks
 
@@ -58,6 +59,7 @@ def layout():
         ], className="mb-4"),
 
 
+
         dbc.Row([
             dbc.Col([
                 dbc.Button(
@@ -92,6 +94,10 @@ def layout():
             ], width=3),
 
         ], className="mb-4"),
+
+        cardSets.renderLibPaths(),
+
+
         #====== top end =========================================================
     ], [
         #====== bottom start=====================================================
@@ -328,7 +334,25 @@ def onFetchAssets(doReport: IFnProg, sto: models.ITaskStore):
             nfy.info(msg)
             return sto, msg
 
-        doReport(10, f"Found {cntAll} photos, starting to fetch assets")
+        doReport(10, f"Found {cntAll} photos, fetching libraries...")
+
+        try:
+            libs = db.psql.fetchLibraries()
+            if libs:
+                db.pics.upsertLibraries([lib.toDict() for lib in libs])
+                lg.info(f"[fetch] Synced {len(libs)} libraries")
+
+                libPaths = db.dto.pathLibs.copy() if db.dto.pathLibs else {}
+                for lib in libs:
+                    for impPath in lib.importPaths:
+                        if impPath not in libPaths:
+                            libPaths[impPath] = ""
+                db.dto.pathLibs = libPaths
+                lg.info(f"[fetch] Updated pathLibs with {len(libPaths)} external paths")
+        except Exception as e:
+            lg.warn(f"[fetch] Failed to fetch libraries: {e}")
+
+        doReport(12, f"Starting to fetch assets")
 
         try:
             assets = db.psql.fetchAssets(usr, onUpdate=doReport)

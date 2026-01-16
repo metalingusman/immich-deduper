@@ -10,7 +10,7 @@ WORKDIR /app
 ARG DEDUP_PORT=8086
 ENV PORT=${DEDUP_PORT}
 
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl libimage-exiftool-perl && rm -rf /var/lib/apt/lists/*
 
 # Copy appropriate requirements file based on device
 COPY requirements*.txt ./

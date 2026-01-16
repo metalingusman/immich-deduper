@@ -1,4 +1,6 @@
-from dsh import htm, dcc, dbc, inp, out, ste, cbk, noUpd
+import json
+from dash.dependencies import ALL
+from dsh import htm, dcc, dbc, inp, out, ste, cbk, noUpd, ctx
 
 from util import log
 
@@ -58,9 +60,29 @@ class k:
     cpuAutoMode = "cpuAutoMode"
     cpuWorkers = "cpuWorkers"
 
+    mrgEnable = "mrgEnable"
+    mrgAlbums = "mrgAlbums"
+    mrgFavorites = "mrgFavorites"
+    mrgTags = "mrgTags"
+    mrgRating = "mrgRating"
+    mrgDescription = "mrgDescription"
+    mrgLocation = "mrgLocation"
+    mrgVisibility = "mrgVisibility"
+
+    libPathsData = "libPathsData"
+    libPathsContainer = "libPathsContainer"
+
+    immichPath = "immichPath"
+    immichThumb = "immichThumb"
 
     @staticmethod
     def id(name): return {"type": "sets", "id": f"{name}"}
+
+    @staticmethod
+    def libPathId(idx): return {"type": "libPath", "idx": idx}
+
+    @staticmethod
+    def libPathChk(idx): return {"type": "libPathChk", "idx": idx}
 
 
 optThresholdMin = 0.5
@@ -119,33 +141,67 @@ for i in range(1, min(cpuCnt + 1, 17)): optCpuWorkers[str(i)] = i
 
 def renderThreshold():
     return dbc.Card([
-        dbc.CardHeader("Threshold Min"),
+        dbc.CardHeader(["Threshold Min",htm.Small("sets minimum similarity for matching") ]),
         dbc.CardBody([
             htm.Div([
                 htm.Div([
                     dcc.Slider(
                         id=k.id(k.threshold), min=optThresholdMin, max=1, step=0.01, marks=optThresholdMarks, #type: ignore
                         value=db.dto.thMin, included=False,
-                        tooltip={
-                            "placement": "top", "always_visible": True,
-                            "style": {"padding": "0 1px 0 1px", "fontSize": "11px"},
-                        },
+                        tooltip={ "placement": "top", "always_visible": True, "style": {"padding": "0 1px 0 1px", "fontSize": "11px"}, },
                     ),
                 ], className=""),
-                htm.Ul([
-                    htm.Li("Threshold sets minimum similarity for image matching")
-                ])
-            ], className="irow mb-2"),
+                htm.Ul([  ])
+            ], className="irow mb-0"),
         ])
-    ], className="mb-2")
+    ], className="ifns mb-1")
+
+def renderMerge():
+    return dbc.Card([
+        dbc.CardHeader([
+            "Metadata Merge ",
+            htm.Small(["from deleted to kept photos",htm.Span("BETA", className="tag yellow text-dark ms-1 no")]),
+        ]),
+        dbc.CardBody([
+            htm.Div([
+
+                htm.Div([
+                    dbc.Checkbox(id=k.id(k.mrgEnable), label="Enable", value=db.dto.mrg),
+                    htm.Div([
+                        htm.Div([htm.B("WARN!")," Writes directly to Immich"], className="text-warning"),
+                        htm.Div(["Failed when original path can't access"], className="text-muted"),
+                    ]),
+                ], className="icbxs single"),
+
+
+                htm.Hr(),
+
+                htm.Div([
+                    dbc.Checkbox(id=k.id(k.mrgAlbums), label="Albums", value=db.dto.mrg_Albums, disabled=not db.dto.mrg),
+                    dbc.Checkbox(id=k.id(k.mrgFavorites), label="Favorites", value=db.dto.mrg_Favorites, disabled=not db.dto.mrg),
+                    dbc.Checkbox(id=k.id(k.mrgTags), label="Tags", value=db.dto.mrg_Tags, disabled=not db.dto.mrg),
+                    dbc.Checkbox(id=k.id(k.mrgRating), label="Rating", value=db.dto.mrg_Rating, disabled=not db.dto.mrg),
+                    dbc.Checkbox(id=k.id(k.mrgDescription), label="Description", value=db.dto.mrg_Description, disabled=not db.dto.mrg),
+                    dbc.Checkbox(id=k.id(k.mrgLocation), label="Location", value=db.dto.mrg_Location, disabled=not db.dto.mrg),
+                    dbc.Checkbox(id=k.id(k.mrgVisibility), label="Visibility", value=db.dto.mrg_Visibility, disabled=not db.dto.mrg),
+                ], className="icbxs"),
+            ], className="mb-1 igrid txt-sm"),
+        ])
+    ], className="ifns mb-1")
+
 
 def renderAutoSelect():
     return dbc.Card([
-        dbc.CardHeader("Auto Selection"),
+        dbc.CardHeader(["Auto Selection",htm.Small("selects top point in group") ]),
         dbc.CardBody([
             htm.Div([
                 # Main enable switch
-                dbc.Checkbox(id=k.id(k.auSelEnable), label="Enable", value=db.dto.ausl), htm.Br(),
+                htm.Div([
+                    dbc.Checkbox(id=k.id(k.auSelEnable), label="Enable", value=db.dto.ausl),
+                    htm.Div([
+                        htm.Span([htm.B("Points: "),"0=Ignore, 1=Low, 2=High priority"], className="text-muted")
+                    ]),
+                ], className="icbxs single"),
 
                 dbc.Checkbox(id=k.id(k.auSelSkipLowSim), label="Skip has sim(<0.96) group", value=db.dto.ausl_SkipLow, disabled=not db.dto.ausl),
 
@@ -219,14 +275,9 @@ def renderAutoSelect():
                     dbc.Select(id=k.id(k.auSelUsrWgt), options=optWeights, value=_getUsrWgtVal(), disabled=not db.dto.ausl, size="sm"), #type:ignore
                 ], className="icriteria"),
 
-                htm.Hr(),
-                htm.Ul([
-                    htm.Li("Automatically selects top assets in group"),
-                    htm.Li([htm.B("Points: "),"0=Ignore, 1=Low, 2=High priority"])
-                ], className="text-muted small")
             ], className="mb-2 igrid txt-sm"),
         ])
-    ], className="mb-0")
+    ], className="ifns mb-0")
 
 
 def renderCard():
@@ -285,8 +336,8 @@ def renderCard():
                 htm.Ul([
                     htm.Li([htm.B("Max Groups: "), "Maximum number of groups to return when grouping is enabled"]),
                     htm.Li([
-                        htm.Span("⚠️ ", style={"color": "orange"}),
-                        "Auto-Resolve unmatched photos as resolved to prevent re-searching. Use Reset records to reset."
+                        htm.Span("", style={"color": "orange"}),
+                        "Auto-Resolve unmatched as resolved to prevent re-searching. Use Reset records to reset."
                     ])
                 ])
             ], className="irow"),
@@ -335,7 +386,7 @@ def renderCard():
                 ])
             ], className="irow"),
         ])
-    ], className="mb-0")
+    ], className="ifns mb-0")
 
 
 @cbk(
@@ -498,7 +549,7 @@ def excludeSettings_OnUpd(enable, fndLess, filName):
     lg.info(f"[exclSets:OnUpd] Enable[{enable}] FndLess[{fndLess}] FilName[{filName}]")
 
     dis = not enable
-    return [dis]
+    return [dis] * 2
 
 
 def renderGpuSettings():
@@ -605,3 +656,221 @@ def cpuSettings_OnUpd(autoMode, workers):
 
     dis = autoMode
     return [dis]
+
+
+@cbk(
+    [
+        out(k.id(k.mrgAlbums), "disabled"),
+        out(k.id(k.mrgFavorites), "disabled"),
+        out(k.id(k.mrgTags), "disabled"),
+        out(k.id(k.mrgRating), "disabled"),
+        out(k.id(k.mrgDescription), "disabled"),
+        out(k.id(k.mrgLocation), "disabled"),
+        out(k.id(k.mrgVisibility), "disabled"),
+    ],
+    inp(k.id(k.mrgEnable), "value"),
+    inp(k.id(k.mrgAlbums), "value"),
+    inp(k.id(k.mrgFavorites), "value"),
+    inp(k.id(k.mrgTags), "value"),
+    inp(k.id(k.mrgRating), "value"),
+    inp(k.id(k.mrgDescription), "value"),
+    inp(k.id(k.mrgLocation), "value"),
+    inp(k.id(k.mrgVisibility), "value"),
+    prevent_initial_call=True
+)
+def merge_OnUpd(enable, albums, favorites, tags, rating, description, location, visibility):
+    db.dto.mrg = enable
+    db.dto.mrg_Albums = albums
+    db.dto.mrg_Favorites = favorites
+    db.dto.mrg_Tags = tags
+    db.dto.mrg_Rating = rating
+    db.dto.mrg_Description = description
+    db.dto.mrg_Location = location
+    db.dto.mrg_Visibility = visibility
+
+    lg.info(f"[mrgSets:OnUpd] Enable[{enable}] Albums[{albums}] Favorites[{favorites}] Tags[{tags}] Rating[{rating}] Description[{description}] Location[{location}] Visibility[{visibility}]")
+
+    dis = not enable
+    return [dis] * 7
+
+
+def _chkPathIcon(localPth):
+    import os
+    if not localPth:
+        return htm.I(className="bi bi-dash-circle text-muted")
+    if os.path.exists(localPth):
+        return htm.I(className="bi bi-check-circle-fill text-success")
+    return htm.I(className="bi bi-x-circle-fill text-danger")
+
+def _renderLibPathRows():
+    import os
+    libPaths = db.dto.pathLibs or {}
+    if not libPaths:
+        return htm.Div("No external libraries. Fetch assets to detect libraries.", className="text-muted txt-sm")
+
+    rows = []
+    for idx, (immichPth, localPth) in enumerate(libPaths.items()):
+        rows.append(
+            htm.Div([
+                htm.Div([
+                    htm.Small("Immich Path", className="text-muted"),
+                    dbc.Input(value=immichPth, size="sm", className="txt-sm", disabled=True),
+                ], className="col-5"),
+                htm.Div([
+                    htm.Small("Local Path", className="text-muted"),
+                    dbc.InputGroup([
+                        dbc.Input(
+                            id=k.libPathId(idx),
+                            value=localPth or "",
+                            placeholder="Leave empty if same path",
+                            size="sm",
+                            className="txt-sm",
+                            debounce=1000
+                        ),
+                        dbc.InputGroupText(
+                            id=k.libPathChk(idx),
+                            children=_chkPathIcon(localPth),
+                            style={"padding": "0 8px"}
+                        ),
+                    ], size="sm"),
+                ], className="col-7"),
+            ], className="row mb-2 align-items-end", **{"data-immich-path": immichPth})
+        )
+    return htm.Div(rows)
+
+
+def renderLibPaths():
+    return dbc.Row([
+        dbc.Col([
+            #------------------------------------------------------------------------
+            dbc.Card([
+                dbc.CardHeader("Main Paths"),
+                dbc.CardBody([
+                    htm.Div([
+                        htm.Small("Immich Path", className="text-muted"),
+                        dbc.InputGroup([
+                            dbc.Input(
+                                id=k.id(k.immichPath),
+                                value=db.dto.pathImmich or "",
+                                placeholder="/path/to/immich",
+                                size="sm",
+                                className="txt-sm",
+                                debounce=1000
+                            ),
+                            dbc.InputGroupText(
+                                id=k.id(f"{k.immichPath}Chk"),
+                                children=_chkPathIcon(db.dto.pathImmich),
+                                style={"padding": "0 8px"}
+                            ),
+                        ], size="sm"),
+                    ], className="mb-2"),
+                    htm.Div([
+                        htm.Small(["Thumbnail ", htm.Span("(optional)", className="text-muted")], className="text-muted"),
+                        dbc.InputGroup([
+                            dbc.Input(
+                                id=k.id(k.immichThumb),
+                                value=db.dto.pathThumb or "",
+                                placeholder="/path/to/immichthumbs",
+                                size="sm",
+                                className="txt-sm",
+                                debounce=1000
+                            ),
+                            dbc.InputGroupText(
+                                id=k.id(f"{k.immichThumb}Chk"),
+                                children=_chkPathIcon(db.dto.pathThumb),
+                                style={"padding": "0 8px"}
+                            ),
+                        ], size="sm"),
+                    ]),
+                ])
+            ], className="ifns mb-2"),
+        ], width=4),
+        dbc.Col([
+            #------------------------------------------------------------------------
+            dbc.Card([
+                dbc.CardHeader([
+                    "Library Mapping",
+                    htm.Small("for external libraries", className="ms-2 text-muted")
+                ]),
+                dbc.CardBody([
+                    htm.Div(id=k.id(k.libPathsContainer), children=_renderLibPathRows()),
+                    htm.Ul([
+                        htm.Li([htm.B("Immich Path: "), "Original path from Immich external library"]),
+                        htm.Li([htm.B("Local Path: "), "Override path if Deduper can't access original"]),
+                    ], className="mt-2 txt-sm text-muted")
+                ])
+            ], className="ifns mb-2"),
+            #------------------------------------------------------------------------
+            dcc.Store(id=k.id(k.libPathsData), data=json.dumps(db.dto.pathLibs or {})),
+
+        ], width=8),
+    ])
+
+
+
+@cbk(
+    [
+        out(k.id(k.libPathsContainer), "children"),
+        out(k.id(k.libPathsData), "data", allow_duplicate=True),
+    ],
+    inp(ks.sto.cnt, "data"),
+    prevent_initial_call=True
+)
+def libPaths_OnCntUpd(_):
+    db.dto.clearCache()
+    libPaths = db.dto.pathLibs or {}
+    return _renderLibPathRows(), json.dumps(libPaths)
+
+
+@cbk(
+    out(k.id(k.libPathsData), "data"),
+    inp({"type": "libPath", "idx": ALL}, "value"),
+    ste(k.id(k.libPathsData), "data"),
+    prevent_initial_call=True
+)
+def libPaths_OnUpd(values, dataJson):
+    libPaths = json.loads(dataJson) if dataJson else {}
+    keys = list(libPaths.keys())
+
+    for idx, val in enumerate(values):
+        if idx < len(keys):
+            libPaths[keys[idx]] = val or ""
+
+    db.dto.pathLibs = libPaths
+    lg.info(f"[libPaths:OnUpd] Updated {len(libPaths)} mappings")
+
+    return json.dumps(libPaths)
+
+
+@cbk(
+    out({"type": "libPathChk", "idx": ALL}, "children"),
+    inp({"type": "libPath", "idx": ALL}, "value"),
+    ste(k.id(k.libPathsData), "data"),
+    prevent_initial_call=True
+)
+def libPathChk_OnUpd(values, dataJson):
+    icons = []
+    for val in values: icons.append(_chkPathIcon(val))
+    return icons
+
+
+@cbk(
+    out(k.id(f"{k.immichPath}Chk"), "children"),
+    inp(k.id(k.immichPath), "value"),
+    prevent_initial_call=True
+)
+def immichPath_OnUpd(val):
+    db.dto.pathImmich = val or ""
+    lg.info(f"[immichPath:OnUpd] Updated to: {val}")
+    return _chkPathIcon(val)
+
+
+@cbk(
+    out(k.id(f"{k.immichThumb}Chk"), "children"),
+    inp(k.id(k.immichThumb), "value"),
+    prevent_initial_call=True
+)
+def immichThumb_OnUpd(val):
+    db.dto.pathThumb = val or ""
+    lg.info(f"[immichThumb:OnUpd] Updated to: {val}")
+    return _chkPathIcon(val)

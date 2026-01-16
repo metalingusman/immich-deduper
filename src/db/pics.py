@@ -45,6 +45,7 @@ def init():
                     id               TEXT Unique,
                     ownerId          TEXT,
                     deviceId         TEXT,
+                    libId            TEXT,
                     type             TEXT,
                     originalFileName TEXT,
                     originalPath     TEXT,
@@ -67,6 +68,15 @@ def init():
                 ''')
 
             c.execute('''
+                Create Table If Not Exists libraries (
+                    id          TEXT Primary Key,
+                    name        TEXT,
+                    ownerId     TEXT,
+                    importPaths TEXT Default '[]'
+                )
+                ''')
+
+            c.execute('''
                 Create Table If Not Exists users (
                     id     TEXT Primary Key,
                     name   TEXT,
@@ -74,6 +84,15 @@ def init():
                     apiKey TEXT
                 )
                 ''')
+
+            # migration: add missing columns
+            c.execute("PRAGMA table_info(assets)")
+            existCols = {row[1] for row in c.fetchall()}
+            migs = [("libId", "TEXT"), ("sidecarPath", "TEXT")]
+            for col, typ in migs:
+                if col not in existCols:
+                    c.execute(f"ALTER TABLE assets ADD COLUMN {col} {typ}")
+                    lg.info(f"[pics:migration] added assets.{col}")
 
             # indexes
             c.execute('''CREATE INDEX IF NOT EXISTS idx_assets_autoId_simOk ON assets(autoId, simOk)''')
@@ -96,10 +115,47 @@ def clearAll():
             c = conn.cursor()
             c.execute("Drop Table If Exists assets")
             c.execute("Drop Table If Exists users")
+            c.execute("Drop Table If Exists libraries")
             conn.commit()
         return init()
     except Exception as e:
         raise mkErr("Failed to clear pics database", e)
+
+
+def upsertLibraries(libraries: list):
+    try:
+        with mkConn() as conn:
+            c = conn.cursor()
+            for lib in libraries:
+                paths = json.dumps(lib.get('importPaths', []))
+                c.execute('''
+                    Insert Into libraries (id, name, ownerId, importPaths)
+                    Values (?, ?, ?, ?)
+                    On Conflict(id) Do Update Set
+                        name = excluded.name,
+                        ownerId = excluded.ownerId,
+                        importPaths = excluded.importPaths
+                ''', (lib['id'], lib.get('name'), lib.get('ownerId'), paths))
+            conn.commit()
+            return len(libraries)
+    except Exception as e:
+        raise mkErr("Failed to upsert libraries", e)
+
+
+def getLibraries() -> list:
+    try:
+        with mkConn() as conn:
+            c = conn.cursor()
+            c.execute("Select * From libraries")
+            rows = c.fetchall()
+            result = []
+            for row in rows:
+                lib = dict(row)
+                lib['importPaths'] = json.loads(lib.get('importPaths', '[]'))
+                result.append(lib)
+            return result
+    except Exception as e:
+        raise mkErr("Failed to get libraries", e)
 
 
 def clearBy(usrId):
@@ -354,18 +410,20 @@ def saveBy(asset: dict, c: Cursor) -> int:  #, onExist:Callable[[models.Asset],N
 
         if row is None:
             c.execute('''
-                Insert Into assets (id, ownerId, deviceId, vdoId, type, originalFileName, originalPath,
-                fileCreatedAt, fileModifiedAt, isFavorite, isArchived,
+                Insert Into assets (id, ownerId, deviceId, libId, vdoId, type, originalFileName, originalPath,
+                sidecarPath, fileCreatedAt, fileModifiedAt, isFavorite, isArchived,
                 localDateTime, pathThumbnail, pathPreview, pathVdo, jsonExif)
-                Values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                Values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 str(assId),
                 str(asset.get('ownerId')),
                 asset.get('deviceId'),
+                str(asset.get('libraryId')) if asset.get('libraryId') else None,
                 str(asset.get('video_id')) if asset.get('video_id') else None,
                 asset.get('type'),
                 asset.get('originalFileName'),
                 asset.get('originalPath'),
+                asset.get('sidecarPath'),
                 asset.get('fileCreatedAt'),
                 asset.get('fileModifiedAt'),
                 asset.get('isFavorite'),
@@ -394,6 +452,8 @@ def saveBy(asset: dict, c: Cursor) -> int:  #, onExist:Callable[[models.Asset],N
             c.execute('''
                 Update assets Set
                     originalPath = ?,
+                    sidecarPath = ?,
+                    libId = ?,
                     pathThumbnail = ?,
                     pathPreview = ?,
                     pathVdo = ?,
@@ -403,6 +463,8 @@ def saveBy(asset: dict, c: Cursor) -> int:  #, onExist:Callable[[models.Asset],N
                 Where id = ?
             ''', (
                 asset.get('originalPath'),
+                asset.get('sidecarPath'),
+                str(asset.get('libraryId')) if asset.get('libraryId') else None,
                 asset.get('thumbnail_path'),
                 asset.get('preview_path'),
                 asset.get('video_path'),

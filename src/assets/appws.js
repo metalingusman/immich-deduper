@@ -118,7 +118,7 @@ const TskWS = {
 
 		this.updStoreWs( { err: typeof error === 'string' ? error : 'Connection error' } )
 		//notify('❌ WebSocket connection failed. Task functionality is unavailable.', 'error')
-		this.fnErroed()
+		this.fnErroed( typeof error === 'string' ? error : error?.message || 'Connection error' )
 		this.schedule()
 	},
 

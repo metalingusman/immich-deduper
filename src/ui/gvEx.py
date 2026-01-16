@@ -64,9 +64,8 @@ def mkTipExif(assId, dicExif: Optional[models.AssetExif]):
     table = mkExifGrid(dicExif.toDict())
 
     if len(table) > 0:
-        return dbc.Tooltip(
-            htm.Div([
-                htm.H6("EXIF Information", className="mb-2"),
+        return dbc.Popover(
+            dbc.PopoverBody(
                 htm.Table(
                     htm.Tbody(table),
                     className="table-sm table-striped",
@@ -76,13 +75,13 @@ def mkTipExif(assId, dicExif: Optional[models.AssetExif]):
                         "width": "100%",
                         "borderRadius": "4px"
                     }
-                )
-            ], style={"maxWidth": "400px", "maxHeight": "400px", "overflow": "auto"}),
+                ),
+                style={"maxWidth": "400px", "maxHeight": "400px", "overflow": "auto", "padding": "8px"}
+            ),
             target={"type": "exif-badge", "index": assId},
+            trigger="hover focus",
             placement="auto",
-            style={"backgroundColor": "rgba(0,0,0,0.9)", "color": "white", "maxWidth": "450px"},
-            className="tooltip-exif-info",
-            delay={"show": 300, "hide": 100}
+            className="popover-exif-info",
         )
 
     return None

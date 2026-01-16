@@ -5,6 +5,7 @@ from flask import send_file, request, make_response, jsonify
 from flask_caching import Cache
 
 from conf import envs, ks, pathCache
+import rtm
 from util import log
 
 lg = log.get(__name__)
@@ -36,9 +37,9 @@ def getCache(ck, fnQ, mime='image/jpeg'):
         if not path:
             lg.warn(f"[serve] the db query failed with cache_key[ {ck} ]")
         else:
-            pathFull = envs.pth.full(path)
+            pathFull = rtm.pth.full(path)
             if not os.path.exists(pathFull):
-                lg.warn(f"[serve] not exists path[ {pathFull} ]({path}) immichPath[ {envs.immichPath} ]")
+                lg.warn(f"[serve] not exists path[ {pathFull} ]({path}) immichPath[ {rtm.immichPath} ]")
             else:
                 rep = make_response(send_file(pathFull, mimetype=mime))
                 # rep.headers['Cache-Control'] = f'public, max-age={CacheBrowserSecs}'
@@ -50,7 +51,7 @@ def getCache(ck, fnQ, mime='image/jpeg'):
     if data is None:
         path = fnQ()
         if path:
-            pathFull = envs.pth.full(path)
+            pathFull = rtm.pth.full(path)
             if os.path.exists(pathFull):
                 with open(pathFull, 'rb') as f: data = f.read()
                 cache.set(ck, data)
@@ -169,8 +170,9 @@ def regBy(app):
     def getChkResults():
         try:
             import chk
-            chks = chk.checkSystem()
-            return jsonify(chks)
+            from dataclasses import asdict
+            items = chk.checkSystem()
+            return jsonify([asdict(item) for item in items])
         except Exception as e:
             lg.error(f"[api] getChkResults Failed: {str(e)}")
             return jsonify({"error": f"Failed to get ChkResults, {str(e)}"}), 500

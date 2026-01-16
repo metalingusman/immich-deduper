@@ -2,6 +2,7 @@ from conf import ks, envs
 from dsh import dash, htm, dbc, dcc
 from util import log
 
+import rtm
 from ui import cardSets
 
 lg = log.get(__name__)
@@ -34,74 +35,42 @@ def layout():
                     dbc.CardBody([
 
                         htm.Div([
-
-                            htm.Div([
-                                htm.Div([
-                                    htm.I(),
-                                    htm.Small("Deduper Data Path", className="text-muted")
-                                ], className="d-flex align-items-center"),
-                                htm.Div([
-                                    htm.Span(envs.mkitData or "(Not configured)", className="fw-semibold text-break me-2"),
-                                    htm.Span(className="small")
-                                ], className="fw-semibold")
-                            ], className=f"row mb-3 p-2 rounded chk-data"),
-
-
-                            htm.Div([
-                                htm.Div([
-                                    htm.I(),
-                                    htm.Small("Immich Logic Check", className="text-muted")
-                                ], className="d-flex align-items-center"),
-                                htm.Div([
-                                    htm.Span("Immich GitHub Repository", className="fw-semibold me-2"),
-                                    htm.Span(className="small")
-                                ], className="fw-semibold")
-                            ], className=f"row mb-3 p-2 rounded chk-logic"),
-
-                            htm.Div([
-                                htm.Div([
-                                    htm.I(),
-                                    htm.Small("Qdrant URL", className="text-muted")
-                                ], className="d-flex align-items-center"),
-                                htm.Div([
-                                    htm.Span(envs.qdrantUrl or "(Not configured)", className="fw-semibold text-break me-2"),
-                                    htm.Span(className="small")
-                                ], className="fw-semibold")
-                            ], className=f"row mb-3 p-2 rounded chk-vec"),
-
-                            htm.Div([
-                                htm.Div([
-                                    htm.I(),
-                                    htm.Small("PostgreSQL Connection", className="text-muted")
-                                ], className="d-flex align-items-center"),
-                                htm.Div([
-                                    htm.Span(f"{envs.psqlHost}:{envs.psqlPort}", className="fw-semibold me-2"),
-                                    htm.Span(className="small")
-                                ], className="fw-semibold")
-                            ], className=f"row mb-3 p-2 rounded chk-psql"),
-
-                            htm.Div([
-                                htm.Div([
-                                    htm.I(),
-                                    htm.Small("Immich Root Path", className="text-muted")
-                                ], className="d-flex align-items-center"),
-                                htm.Div([
-                                    htm.Span(envs.immichPath or "(Not configured)", className="fw-semibold text-break me-2"),
-                                    htm.Span(className="small")
-                                ], className="fw-semibold")
-                            ], className=f"row mb-3 p-2 rounded chk-path"),
-
-                            htm.Div([
-                                htm.Div([
-                                    htm.I(),
-                                    htm.Small("ResNet152 Model", className="text-muted")
-                                ], className="d-flex align-items-center"),
-                                htm.Div([
-                                    htm.Span("Feature Extraction Weights", className="fw-semibold me-2"),
-                                    htm.Span(className="small")
-                                ], className="fw-semibold")
-                            ], className=f"row mb-3 p-2 rounded chk-model"),
-
+                            dbc.Row([
+                                dbc.Col(htm.Div([
+                                    htm.I(), htm.Small("Deduper Data", className="text-muted ms-2"),
+                                    htm.Div(envs.mkitData or "(Not configured)", className="fw-semibold text-break small")
+                                ], className="p-2 rounded chk-data"), width=6),
+                                dbc.Col(htm.Div([
+                                    htm.I(), htm.Small("Immich Logic", className="text-muted ms-2"),
+                                    htm.Div("GitHub Repository", className="fw-semibold small")
+                                ], className="p-2 rounded chk-logic"), width=6),
+                            ], className="mb-2"),
+                            dbc.Row([
+                                dbc.Col(htm.Div([
+                                    htm.I(), htm.Small("Qdrant", className="text-muted ms-2"),
+                                    htm.Div(envs.qdrantUrl or "(Not configured)", className="fw-semibold text-break small")
+                                ], className="p-2 rounded chk-vec"), width=6),
+                                dbc.Col(htm.Div([
+                                    htm.I(), htm.Small("PostgreSQL", className="text-muted ms-2"),
+                                    htm.Div(f"{envs.psqlHost}:{envs.psqlPort}", className="fw-semibold small")
+                                ], className="p-2 rounded chk-psql"), width=6),
+                            ], className="mb-2"),
+                            dbc.Row([
+                                dbc.Col(htm.Div([
+                                    htm.I(), htm.Small("Immich Path", className="text-muted ms-2"),
+                                    htm.Div(rtm.immichPath or "(Not configured)", className="fw-semibold text-break small")
+                                ], className="p-2 rounded chk-path"), width=6),
+                                dbc.Col(htm.Div([
+                                    htm.I(), htm.Small("ResNet152", className="text-muted ms-2"),
+                                    htm.Div("Feature Extraction", className="fw-semibold small")
+                                ], className="p-2 rounded chk-model"), width=6),
+                            ], className="mb-2"),
+                            dbc.Row([
+                                dbc.Col(htm.Div([
+                                    htm.I(), htm.Small("ExifTool", className="text-muted ms-2"),
+                                    htm.Div("Metadata Editor", className="fw-semibold small")
+                                ], className="p-2 rounded chk-exiftool"), width=6),
+                            ], className="mb-2"),
                         ], className="card-system-cfgs")
                     ])
                 ], className="border-0 shadow-sm")

@@ -23,6 +23,7 @@ from util import log
 from mod import models
 from util.err import mkErr
 from conf import envs
+import rtm
 
 
 lg = log.get(__name__)
@@ -222,7 +223,7 @@ def toB64(path):
 
 
 def getImg(path) -> Optional[Image.Image]:
-    path = conf.envs.pth.full(path)
+    path = rtm.pth.full(path)
     try:
         if os.path.exists(path):
             size = os.path.getsize(path)

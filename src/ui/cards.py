@@ -29,7 +29,8 @@ def mk(ass: models.Asset, modSim=True):
     isMain = ass.vw.isMain
     isRels = ass.vw.isRelats
     isLive = ass.vdoId is not None
-    canFnd = ass.simOk is 0
+    canFnd = ass.simOk == 0
+    hasVec = ass.isVectored == 1
 
     css = f"h-100 sim {cssIds} {'' if modSim else 'view'}"
     if isMain: css += " main"
@@ -68,6 +69,7 @@ def mk(ass: models.Asset, modSim=True):
                     htm.Li(fac.name, className="tag") for fac in (ex.facs if ex and ex.facs else [])
                 ])
             ], className="poptip", id=f'facs-{ass.autoId}') if ex and ex.facs else None,
+
         ], style={ 'display':'absolute' }),
         #------------------------------------------------------------------------
         dbc.Card([
@@ -161,11 +163,37 @@ def mk(ass: models.Asset, modSim=True):
                     htm.Span('✅ resolved', className='tag') if ass.simOk else None,
                     htm.Span('❤️', className='tag') if ass.isFavorite else None,
                     htm.Span("exif", className='tag blue', id={'type':'exif-badge', 'index': ass.id}) if ass.jsonExif else None,
+                    htm.Span("external", className='tag yellow') if ass.libId else None,
                     #
-                    htm.Span([
-                        htm.I(className='bi bi-archive-fill'),
-                        f'archived'
-                    ], className='tag info') if ass.isArchived else None,
+                    htm.Span(ex.visibility, className='tag info') if ex and ex.visibility and ex.visibility != 'timeline' else None,
+
+                    htm.Span(f'⭐{ex.rating}', className='tag yellow') if ex and ex.rating and ex.rating > 0 else None,
+                    htm.Span('desc', className='tag second', id={'type':'desc-badge', 'index': ass.id}) if ex and ex.description else None,
+                    dbc.Popover(
+                        dbc.PopoverBody(
+                            htm.P(ex.description, style={"maxWidth": "300px", "whiteSpace": "pre-wrap", "wordBreak": "break-word", "margin": "0"}),
+                            style={"padding": "8px"}
+                        ),
+                        target={'type':'desc-badge', 'index': ass.id},
+                        trigger="hover focus",
+                        placement="auto",
+                    ) if ex and ex.description else None,
+                    htm.Span('location', className='tag green', id={'type':'loc-badge', 'index': ass.id}) if ex and ex.latitude is not None and ex.longitude is not None else None,
+                    dbc.Popover(
+                        dbc.PopoverBody(
+                            htm.Table(htm.Tbody([
+                                htm.Tr([htm.Td("City"), htm.Td(ex.city)]) if ex.city else None,
+                                htm.Tr([htm.Td("State"), htm.Td(ex.state)]) if ex.state else None,
+                                htm.Tr([htm.Td("Country"), htm.Td(ex.country)]) if ex.country else None,
+                                htm.Tr([htm.Td("Latitude"), htm.Td(f'{ex.latitude:.6f}')]),
+                                htm.Tr([htm.Td("Longitude"), htm.Td(f'{ex.longitude:.6f}')]),
+                            ]), className="table-sm table-striped", style={"backgroundColor": "white", "color": "black", "width": "100%", "borderRadius": "4px"}),
+                            style={"padding": "8px"}
+                        ),
+                        target={'type':'loc-badge', 'index': ass.id},
+                        trigger="hover focus",
+                        placement="auto",
+                    ) if ex and ex.latitude is not None and ex.longitude is not None else None,
                     #
                     # htm.Span([
                     #     htm.I(className='bi bi-bookmark-check-fill'),
@@ -196,7 +224,14 @@ def mk(ass: models.Asset, modSim=True):
                         f"Find Similar #{ass.autoId}",
                         href=f"/{ks.pg.similar}/{ass.autoId}",
                         className="btn btn-primary btn-sm w-76 me-2"
-                    ) if canFnd else None,
+                    ) if canFnd and hasVec else
+                    htm.Button(
+                        f"No Vector #{ass.autoId}",
+                        className="btn btn-secondary btn-sm w-76 me-2",
+                        disabled=True,
+                        title="This asset has no vector, please generate vectors first",
+                        style={"border": "1px solid #6c757d", "opacity": "0.7"}
+                    ) if canFnd and not hasVec else None,
 
                     htm.Button(
                         htm.I(className='bi bi-trash'),

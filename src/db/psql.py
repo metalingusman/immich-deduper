@@ -1,14 +1,19 @@
 import os
 import time
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, cast, LiteralString
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from dataclasses import dataclass
 
 import psycopg
 from psycopg.rows import dict_row
 
-import imgs
+
+def Q(s: str) -> LiteralString:
+    return cast(LiteralString, s)
+
 from conf import ks, envs
+import rtm
 from util import log
 from mod import models
 from util.err import mkErr
@@ -16,25 +21,28 @@ from util.err import mkErr
 lg = log.get(__name__)
 
 
+@dataclass
 class SchemaInfo:
-    def __init__(self):
-        # Table names
-        self.asset = None
-        self.album = None
-        self.tag = None
-        self.user = None
-
-        # album_asset junction table columns
-        self.albumAssetAlbumId = None
-        self.albumAssetAssetId = None
-
-        # tag_asset junction table columns
-        self.tagAssetTagId = None
-        self.tagAssetAssetId = None
-
-        # album_user junction table columns
-        self.albumUserAlbumId = None
-        self.albumUserUserId = None
+    # Main table names (singular vs plural)
+    asset: str = 'asset'
+    album: str = 'album'
+    tag: str = 'tag'
+    user: str = 'user'
+    # Related table names (old: exif/asset_files/asset_faces, new: asset_exif/asset_file/asset_face)
+    assetExif: str = 'asset_exif'
+    assetFile: str = 'asset_file'
+    assetFace: str = 'asset_face'
+    # Junction table names
+    albumAsset: str = 'album_asset'
+    tagAsset: str = 'tag_asset'
+    albumUser: str = 'album_user'
+    # Junction table column names
+    albumAssetAlbumId: str = 'albumId'
+    albumAssetAssetId: str = 'assetId'
+    tagAssetTagId: str = 'tagId'
+    tagAssetAssetId: str = 'assetId'
+    albumUserAlbumId: str = 'albumId'
+    albumUserUserId: str = 'userId'
 
 _schema = None
 
@@ -71,45 +79,70 @@ def detectSchema():
                 schema.tag = 'tag' if 'tag' in tables else 'tags'
                 schema.user = 'user' if 'user' in tables else 'users'
 
-                # Detect album_asset junction table column names
+                # Detect related table names (old: exif/asset_files/asset_faces, new: asset_exif/asset_file/asset_face)
                 c.execute("""
+                    SELECT table_name FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                    AND table_name IN ('asset_exif', 'exif', 'asset_file', 'asset_files', 'asset_face', 'asset_faces')
+                """)
+                relTables = {row[0] for row in c.fetchall()}
+                schema.assetExif = 'asset_exif' if 'asset_exif' in relTables else 'exif'
+                schema.assetFile = 'asset_file' if 'asset_file' in relTables else 'asset_files'
+                schema.assetFace = 'asset_face' if 'asset_face' in relTables else 'asset_faces'
+
+                # Detect junction table names (new: album_asset, old: albums_assets_assets)
+                c.execute("""
+                    SELECT table_name FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                    AND table_name IN ('album_asset', 'albums_assets_assets',
+                                       'tag_asset', 'tags_assets_assets',
+                                       'album_user', 'albums_shared_users_users')
+                """)
+                jTables = {row[0] for row in c.fetchall()}
+                schema.albumAsset = 'album_asset' if 'album_asset' in jTables else 'albums_assets_assets'
+                schema.tagAsset = 'tag_asset' if 'tag_asset' in jTables else 'tags_assets_assets'
+                schema.albumUser = 'album_user' if 'album_user' in jTables else 'albums_shared_users_users'
+
+                # Detect album_asset junction table column names
+                c.execute(Q(f"""
                     SELECT column_name FROM information_schema.columns
                     WHERE table_schema = 'public'
-                    AND table_name = 'album_asset'
+                    AND table_name = '{schema.albumAsset}'
                     AND (column_name LIKE '%albumId' OR column_name LIKE '%albumsId'
                          OR column_name LIKE '%assetId' OR column_name LIKE '%assetsId')
-                """)
+                """))
                 cols = {row[0] for row in c.fetchall()}
                 schema.albumAssetAlbumId = 'albumId' if 'albumId' in cols else 'albumsId'
                 schema.albumAssetAssetId = 'assetId' if 'assetId' in cols else 'assetsId'
 
                 # Detect tag_asset junction table column names
-                c.execute("""
+                c.execute(Q(f"""
                     SELECT column_name FROM information_schema.columns
                     WHERE table_schema = 'public'
-                    AND table_name = 'tag_asset'
+                    AND table_name = '{schema.tagAsset}'
                     AND (column_name LIKE '%tagId' OR column_name LIKE '%tagsId'
                          OR column_name LIKE '%assetId' OR column_name LIKE '%assetsId')
-                """)
+                """))
                 cols = {row[0] for row in c.fetchall()}
                 schema.tagAssetTagId = 'tagId' if 'tagId' in cols else 'tagsId'
                 schema.tagAssetAssetId = 'assetId' if 'assetId' in cols else 'assetsId'
 
                 # Detect album_user junction table column names
-                c.execute("""
+                c.execute(Q(f"""
                     SELECT column_name FROM information_schema.columns
                     WHERE table_schema = 'public'
-                    AND table_name = 'album_user'
+                    AND table_name = '{schema.albumUser}'
                     AND (column_name LIKE '%albumId' OR column_name LIKE '%albumsId'
                          OR column_name LIKE '%userId' OR column_name LIKE '%usersId')
-                """)
+                """))
                 cols = {row[0] for row in c.fetchall()}
                 schema.albumUserAlbumId = 'albumId' if 'albumId' in cols else 'albumsId'
                 schema.albumUserUserId = 'userId' if 'userId' in cols else 'usersId'
 
                 lg.info(f"Schema detected - Tables: asset={schema.asset}, album={schema.album}, tag={schema.tag}, user={schema.user}")
-                lg.info(f"Schema detected - album_asset: albumId={schema.albumAssetAlbumId}, assetId={schema.albumAssetAssetId}")
-                lg.info(f"Schema detected - tag_asset: tagId={schema.tagAssetTagId}, assetId={schema.tagAssetAssetId}")
+                lg.info(f"Schema detected - Junction: albumAsset={schema.albumAsset}, tagAsset={schema.tagAsset}, albumUser={schema.albumUser}")
+                lg.info(f"Schema detected - albumAsset cols: albumId={schema.albumAssetAlbumId}, assetId={schema.albumAssetAssetId}")
+                lg.info(f"Schema detected - tagAsset cols: tagId={schema.tagAssetTagId}, assetId={schema.tagAssetAssetId}")
 
                 _schema = schema
                 return schema
@@ -243,15 +276,16 @@ def chk():
 
 def fetchUser(usrId: str) -> Optional[models.Usr]:
     try:
+        sch = getSchema()
         with mkConn() as conn:
-            sql = """
+            q = Q(f"""
             Select
                 id, name, email
-            From "user"
+            From "{sch.user}"
             Where id = %s
-            """
+            """)
             with conn.cursor(row_factory=dict_row) as cursor:
-                cursor.execute(sql, (usrId,))
+                cursor.execute(q, (usrId,))
                 row = cursor.fetchone()
 
                 if not row: raise RuntimeError( "no db row" )
@@ -261,14 +295,25 @@ def fetchUser(usrId: str) -> Optional[models.Usr]:
     except Exception as e:
         raise mkErr(f"Failed to fetch userId[{usrId}]", e)
 
+def fetchLibraries() -> List[models.Library]:
+    try:
+        chk()
+        with mkConn() as conn:
+            with conn.cursor(row_factory=dict_row) as cursor:
+                cursor.execute(Q('Select id, name, "ownerId", "importPaths" From library'))
+                rows = cursor.fetchall()
+                return [models.Library.fromDic(dict(r)) for r in rows]
+    except Exception as e:
+        raise RuntimeError(f"Failed to fetch libraries: {e}")
+
+
 def fetchUsers() -> List[models.Usr]:
     try:
+        sch = getSchema()
         with mkConn() as conn:
-            sql = """
-            Select id, name, email From "user"
-            """
+            q = Q(f'Select id, name, email From "{sch.user}"')
             with conn.cursor(row_factory=dict_row) as cursor:
-                cursor.execute(sql)
+                cursor.execute(q)
                 dics = cursor.fetchall()
                 usrs = [models.Usr.fromDic(d) for d in dics]
 
@@ -284,31 +329,27 @@ def fetchUsers() -> List[models.Usr]:
 
 def count(usrId=None, assetType="IMAGE"):
     try:
+        sch = getSchema()
         with mkConn() as conn:
             with conn.cursor() as cursor:
-                #lg.info( f"[psql] count userId[{usrId}]" )
-
-                # noinspection SqlConstantExpression
-                sql = "Select Count(*) From asset Where 1=1"
+                q = f"Select Count(*) From {sch.asset} Where 1=1"
                 params = []
 
                 if assetType:
-                    sql += " AND type = %s"
+                    q += " AND type = %s"
                     params.append(assetType)
 
                 if usrId:
-                    sql += ' AND "ownerId" = %s'
+                    q += ' AND "ownerId" = %s'
                     params.append(usrId)
 
-                sql += " AND status = 'active'"
+                q += " AND status = 'active'"
 
-                cursor.execute(sql, params)
+                cursor.execute(Q(q), params)
                 rst = cursor.fetchone()
-                count = rst[0] if rst else 0
+                cnt = rst[0] if rst else 0
 
-                #lg.info( f"[psql] count userId[{usrId}] rst[{count}]" )
-
-                return count
+                return cnt
     except Exception as e:
         raise mkErr("Failed to count assets", e)
 
@@ -318,7 +359,8 @@ def count(usrId=None, assetType="IMAGE"):
 def testAssetsPath():
     try:
         with mkConn() as conn:
-            sql = "Select path From asset_file Limit 5"
+            sch = getSchema()
+            sql = Q(f"Select path From {sch.assetFile} Limit 5")
             with conn.cursor(row_factory=dict_row) as cursor:
                 cursor.execute(sql)
                 rows = cursor.fetchall()
@@ -333,7 +375,7 @@ def testAssetsPath():
                     pathDB = row.get("path", "")
                     if pathDB:
                         original_path = pathDB
-                        pathFi = envs.pth.full(pathDB)
+                        pathFi = rtm.pth.full(pathDB)
                         isOk = os.path.exists(pathFi)
                         # lg.info( f"[psql] test isOk[{isOk}] path: {path}" )
                         if isOk: return [ "OK" ]
@@ -371,14 +413,15 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
         with mkConn() as conn:
             with conn.cursor(row_factory=dict_row) as cursor:
                 # count all
-                cntSql = "Select Count( * ) From asset Where status = 'active' And type = %s"
+                sch = getSchema()
+                cntQ = f"Select Count( * ) From {sch.asset} Where status = 'active' And type = %s"
                 cntArs = [asType]
 
                 if usrId:
-                    cntSql += " AND \"ownerId\" = %s"
+                    cntQ += " AND \"ownerId\" = %s"
                     cntArs.append(usrId)
 
-                cursor.execute(cntSql, cntArs)
+                cursor.execute(Q(cntQ), cntArs)
                 rst = cursor.fetchone()
                 if not rst: raise RuntimeError( "cannot count assets" )
 
@@ -392,17 +435,17 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
                 #----------------------------------------------------------------
                 # query assets
                 #----------------------------------------------------------------
-                sql = "Select * From asset Where status = 'active' And type = %s"
+                assetQ = f"Select * From {sch.asset} Where status = 'active' And type = %s"
 
                 params = [asType]
 
                 if usrId:
-                    sql += " AND \"ownerId\" = %s"
+                    assetQ += " AND \"ownerId\" = %s"
                     params.append(usrId)
 
-                sql += " ORDER BY \"createdAt\" DESC"
+                assetQ += " ORDER BY \"createdAt\" DESC"
 
-                cursor.execute(sql, params)
+                cursor.execute(Q(assetQ), params)
 
                 szBatch = 100
                 szChunk = 100
@@ -437,11 +480,11 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
                 #----------------------------------------------------------------
                 # query asset files
                 #----------------------------------------------------------------
-                flsSql = """
+                flsSql = Q(f"""
                    Select "assetId", type, path
-                   From asset_file
+                   From {sch.assetFile}
                    Where "assetId" = ANY(%s)
-                """
+                """)
 
                 assetIds = [a['id'] for a in assets]
                 afs = []
@@ -467,11 +510,11 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
                 #----------------------------------------------------------------
                 # query exif
                 #----------------------------------------------------------------
-                exifSql = """
+                exifSql = Q(f"""
                     Select *
-                    From asset_exif
+                    From {sch.assetExif}
                     Where "assetId" = ANY(%s)
-                """
+                """)
 
                 exifData = {}
                 for idx, i in enumerate(range(0, len(assetIds), szChunk)):
@@ -504,16 +547,15 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
                 #----------------------------------------------------------------
                 onUpdate(42, "query livephoto videos...")
 
-                tableName = 'asset'
-                livePhotoSql = f"""
+                livePhotoQ = Q(f"""
                     -- Method 1: Direct livePhotoVideoId
                     SELECT
                         a.id AS photo_id,
                         a."livePhotoVideoId" AS video_id,
                         v."encodedVideoPath" AS video_path,
                         v."originalPath" AS video_original_path
-                    FROM {tableName} a
-                    JOIN {tableName} v ON v.id = a."livePhotoVideoId" AND v.type = 'VIDEO'
+                    FROM {sch.asset} a
+                    JOIN {sch.asset} v ON v.id = a."livePhotoVideoId" AND v.type = 'VIDEO'
                     WHERE a."livePhotoVideoId" IS NOT NULL
                     AND a.type = 'IMAGE'
                     AND a.id = ANY(%s)
@@ -526,23 +568,23 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
                         v.id AS video_id,
                         v."encodedVideoPath" AS video_path,
                         v."originalPath" AS video_original_path
-                    FROM {tableName} a
-                    JOIN asset_exif ae ON a.id = ae."assetId"
-                    JOIN asset_exif ve ON ae."livePhotoCID" = ve."livePhotoCID"
-                    JOIN {tableName} v ON ve."assetId" = v.id
+                    FROM {sch.asset} a
+                    JOIN {sch.assetExif} ae ON a.id = ae."assetId"
+                    JOIN {sch.assetExif} ve ON ae."livePhotoCID" = ve."livePhotoCID"
+                    JOIN {sch.asset} v ON ve."assetId" = v.id
                     WHERE ae."livePhotoCID" IS NOT NULL
                     AND a."livePhotoVideoId" IS NULL
                     AND a.type = 'IMAGE'
                     AND v.type = 'VIDEO'
                     AND v.id != a.id
                     AND a.id = ANY(%s)
-                """
+                """)
 
                 livePaths = {}
                 liveVdoIds = {}
                 for idx, i in enumerate(range(0, len(assetIds), szChunk)):
                     chunk = assetIds[i:i + szChunk]
-                    cursor.execute(livePhotoSql, (chunk, chunk))
+                    cursor.execute(livePhotoQ, (chunk, chunk))
                     chunkRows = cursor.fetchall()
 
                     for row in chunkRows:
@@ -553,7 +595,7 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
 
                         finalPath = videoPath if videoPath else originalVideoPath
                         if finalPath:
-                            livePaths[photoId] = envs.pth.normalize(finalPath)
+                            livePaths[photoId] = rtm.pth.normalize(finalPath)
                             liveVdoIds[photoId] = videoId
 
                 #----------------------------------------------------------------
@@ -562,7 +604,8 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
                 onUpdate(45, "files ready, combine data...")
 
                 cntOk = 0
-                cntErr = 0
+                noThumbIds = []
+                noExifIds = []
 
                 rst = []
 
@@ -570,8 +613,8 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
                     assetId = asset['id']
                     if assetId in dictFiles:
                         for typ, path in dictFiles[assetId].items():
-                            if typ == ks.db.thumbnail: asset['thumbnail_path'] = envs.pth.normalize(path)
-                            elif typ == ks.db.preview: asset['preview_path'] = envs.pth.normalize(path)
+                            if typ == ks.db.thumbnail: asset['thumbnail_path'] = rtm.pth.normalize(path)
+                            elif typ == ks.db.preview: asset['preview_path'] = rtm.pth.normalize(path)
 
                     if assetId in livePaths: asset['video_path'] = livePaths[assetId]
                     if assetId in liveVdoIds: asset['video_id'] = liveVdoIds[assetId]
@@ -579,13 +622,12 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
                     if assetId in exifData:
                         asset['exifInfo'] = exifData[assetId]
                     else:
-                        lg.warn(f"[exif] NotFound.. assetId[{assetId}]")
+                        noExifIds.append(assetId)
 
                     # final check
                     pathThumbnail = asset.get('thumbnail_path')
                     if not pathThumbnail:
-                        cntErr += 1
-                        lg.warn(f"[psql] ignore non thumbnail asset: {str(asset.get('id'))}")
+                        noThumbIds.append(assetId)
                         continue
 
                     cntOk += 1
@@ -593,6 +635,11 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
 
                     # if len(assets) > 0 and (cntOk % 100 == 0 or cntOk == len(assets)):
                     #     report("combine", cntOk, len(assets), f"processing {cntOk}/{len(assets)}...")
+
+                if noExifIds:
+                    lg.warn(f"[exif] NotFound for {len(noExifIds)} assets")
+                if noThumbIds:
+                    lg.warn(f"[psql] ignored {len(noThumbIds)} assets without thumbnail")
 
                 lg.info(f"Successfully fetched {len(rst)} {asType.lower()} assets")
                 onUpdate(5, f"Successfully fetched {len(rst)} {asType.lower()} assets")
@@ -603,236 +650,6 @@ def fetchAssets(usr: models.Usr, onUpdate: models.IFnProg):
         raise mkErr(msg, e)
 
 
-#------------------------------------------------------
-# Albums Operations
-#------------------------------------------------------
-def getUsrAlbumsBy(usrId: str) -> List[models.Album]:
-    try:
-        with mkConn() as conn:
-            sql = """
-            Select
-                a.id,
-                a."ownerId",
-                a."albumName",
-                a.description,
-                a."createdAt",
-                a."updatedAt",
-                a."albumThumbnailAssetId",
-                a."isActivityEnabled",
-                a."order"
-            From album a
-            Where a."ownerId" = %s And a."deletedAt" Is Null
-            Order By a."createdAt" Desc
-            """
-            with conn.cursor(row_factory=dict_row) as cursor:
-                cursor.execute(sql, (usrId,))
-                rows = cursor.fetchall()
-                return [models.Album.fromDic(row) for row in rows]
-    except Exception as e:
-        raise mkErr(f"Failed to fetch albums for userId[{usrId}]", e)
-
-
-def getAlbumAssetIds(albumId: str) -> List[str]:
-    try:
-        sch = getSchema()
-        with mkConn() as conn:
-            sql = f"""
-            Select aa."{sch.albumAssetAssetId}"
-            From album_asset aa
-            Join {sch.album} a On a.id = aa."{sch.albumAssetAlbumId}"
-            Where aa."{sch.albumAssetAlbumId}" = %s And a."deletedAt" Is Null
-            Order By aa."createdAt" Desc
-            """
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (albumId,))
-                rows = cursor.fetchall()
-                return [row[0] for row in rows]
-    except Exception as e:
-        raise mkErr(f"Failed to fetch assets for albumId[{albumId}]", e)
-
-
-def getAssetAlbums(assetId: str) -> List[models.Album]:
-    try:
-        sch = getSchema()
-        with mkConn() as conn:
-            sql = f"""
-            Select
-                a.id,
-                a."ownerId",
-                a."albumName",
-                a.description,
-                a."createdAt",
-                a."updatedAt",
-                a."albumThumbnailAssetId",
-                a."isActivityEnabled",
-                a."order"
-            From {sch.album} a
-            Join album_asset aa On a.id = aa."{sch.albumAssetAlbumId}"
-            Where aa."{sch.albumAssetAssetId}" = %s And a."deletedAt" Is Null
-            Order By a."createdAt" Desc
-            """
-            with conn.cursor(row_factory=dict_row) as cursor:
-                cursor.execute(sql, (assetId,))
-                rows = cursor.fetchall()
-                return [models.Album.fromDic(row) for row in rows]
-    except Exception as e:
-        raise mkErr(f"Failed to fetch albums for assetId[{assetId}]", e)
-
-
-def addToAlbum(albumId: str, assetIds: List[str]) -> int:
-    if not assetIds: return 0
-
-    try:
-        sch = getSchema()
-        with mkConn() as conn:
-            with conn.cursor() as cursor:
-                checkSql = f"Select 1 From {sch.album} Where id = %s And \"deletedAt\" Is Null"
-                cursor.execute(checkSql, (albumId,))
-                if not cursor.fetchone(): raise RuntimeError(f"Album not found: {albumId}")
-
-                existingSql = f"""
-                Select "{sch.albumAssetAssetId}" From album_asset
-                Where "{sch.albumAssetAlbumId}" = %s And "{sch.albumAssetAssetId}" = ANY(%s)
-                """
-                cursor.execute(existingSql, (albumId, assetIds))
-                existing = {row[0] for row in cursor.fetchall()}
-
-                newAssetIds = [aid for aid in assetIds if aid not in existing]
-                if not newAssetIds: return 0
-
-                values = [(albumId, aid) for aid in newAssetIds]
-                insertSql = f"""
-                Insert Into album_asset ("{sch.albumAssetAlbumId}", "{sch.albumAssetAssetId}", "createdAt")
-                Values (%s, %s, Now())
-                """
-                cursor.executemany(insertSql, values)
-                conn.commit()
-
-                return len(newAssetIds)
-    except Exception as e:
-        raise mkErr(f"Failed to add assets to album[{albumId}]", e)
-
-
-def delFromAlbumBy(albumId: str, assetIds: List[str]) -> int:
-    if not assetIds: return 0
-
-    try:
-        sch = getSchema()
-        with mkConn() as conn:
-            sql = f"""
-            Delete From album_asset
-            Where "{sch.albumAssetAlbumId}" = %s And "{sch.albumAssetAssetId}" = ANY(%s)
-            """
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (albumId, assetIds))
-                removedCnt = cursor.rowcount
-                conn.commit()
-                return removedCnt
-    except Exception as e:
-        raise mkErr(f"Failed to remove assets from album[{albumId}]", e)
-
-
-#------------------------------------------------------
-# Favorites Operations
-#------------------------------------------------------
-def getFavoriteIds(usrId: str) -> List[str]:
-    try:
-        with mkConn() as conn:
-            sql = """
-            Select id From asset
-            Where "ownerId" = %s And "isFavorite" = true And status = 'active'
-            Order By "updatedAt" Desc
-            """
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (usrId,))
-                rows = cursor.fetchall()
-                return [row[0] for row in rows]
-    except Exception as e:
-        raise mkErr(f"Failed to fetch favorite assets for userId[{usrId}]", e)
-
-
-def isFavorite(assetId: str) -> bool:
-    try:
-        with mkConn() as conn:
-            sql = "Select \"isFavorite\" From asset Where id = %s"
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (assetId,))
-                row = cursor.fetchone()
-                return row[0] if row else False
-    except Exception as e:
-        raise mkErr(f"Failed to check favorite status for assetId[{assetId}]", e)
-
-
-def updFavoriteBy(assetIds: List[str], isFav: bool) -> int:
-    if not assetIds: return 0
-
-    try:
-        with mkConn() as conn:
-            sql = """
-            Update asset Set "isFavorite" = %s, "updatedAt" = Now()
-            Where id = ANY(%s) And status = 'active'
-            """
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (isFav, assetIds))
-                updatedCnt = cursor.rowcount
-                conn.commit()
-                return updatedCnt
-    except Exception as e:
-        raise mkErr(f"Failed to update favorite status for assets", e)
-
-
-#------------------------------------------------------
-# Archive Operations
-#------------------------------------------------------
-def getArchivedIds(usrId: str) -> List[str]:
-    try:
-        with mkConn() as conn:
-            sql = """
-            Select id From asset
-            Where "ownerId" = %s And visibility = 'archive' And status = 'active'
-            Order By "updatedAt" Desc
-            """
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (usrId,))
-                rows = cursor.fetchall()
-                return [row[0] for row in rows]
-    except Exception as e:
-        raise mkErr(f"Failed to fetch archived assets for userId[{usrId}]", e)
-
-
-def isArchived(assetId: str) -> bool:
-    try:
-        with mkConn() as conn:
-            sql = "Select visibility From asset Where id = %s"
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (assetId,))
-                row = cursor.fetchone()
-                return row[0] == 'archive' if row else False
-    except Exception as e:
-        raise mkErr(f"Failed to check archive status for assetId[{assetId}]", e)
-
-
-def updArchiveBy(assetIds: List[str], isArchived: bool) -> int:
-    if not assetIds: return 0
-
-    try:
-        with mkConn() as conn:
-            visibility = 'archive' if isArchived else 'timeline'
-            sql = """
-            Update asset Set visibility = %s, "updatedAt" = Now()
-            Where id = ANY(%s) And status = 'active'
-            """
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (visibility, assetIds))
-                updatedCnt = cursor.rowcount
-                conn.commit()
-                return updatedCnt
-    except Exception as e:
-        raise mkErr(f"Failed to update archive status for assets", e)
-
-
-#------------------------------------------------------
-# Extended Info Operations
 #------------------------------------------------------
 def fetchExInfo(assetId: str) -> Optional[models.AssetExInfo]:
     rst = fetchExInfos([assetId])
@@ -851,18 +668,41 @@ def fetchExInfos(assetIds: List[str]) -> Dict[str, models.AssetExInfo]:
 
                 for assetId in assetIds: rst[str(assetId).strip()] = models.AssetExInfo()
 
+                # Fetch visibility and exif (rating, description, location)
+                for i in range(0, len(assetIds), szChunk):
+                    chunk = assetIds[i:i + szChunk]
+                    visQ = Q(f'''
+                    Select a.id, a.visibility, e.rating, e.description, e.latitude, e.longitude, e.city, e.state, e.country
+                    From {sch.asset} a
+                    Left Join {sch.assetExif} e On a.id = e."assetId"
+                    Where a.id = ANY(%s)
+                    ''')
+                    cursor.execute(visQ, (chunk,))
+                    visRows = cursor.fetchall()
+                    for row in visRows:
+                        assetId = str(row['id']).strip()
+                        if assetId in rst:
+                            rst[assetId].visibility = row['visibility'] or 'timeline'
+                            rst[assetId].rating = row['rating'] or 0
+                            rst[assetId].description = row['description']
+                            rst[assetId].latitude = row['latitude']
+                            rst[assetId].longitude = row['longitude']
+                            rst[assetId].city = row['city']
+                            rst[assetId].state = row['state']
+                            rst[assetId].country = row['country']
+
                 # Fetch albums in chunks
                 for i in range(0, len(assetIds), szChunk):
                     chunk = assetIds[i:i + szChunk]
-                    albSql = f"""
+                    albQ = Q(f"""
                     Select aaa."{sch.albumAssetAssetId}", a.id, a."ownerId", a."albumName", a.description,
                            a."createdAt", a."updatedAt", a."albumThumbnailAssetId", a."isActivityEnabled", a."order"
                     From {sch.album} a
-                    Join album_asset aaa On a.id = aaa."{sch.albumAssetAlbumId}"
+                    Join {sch.albumAsset} aaa On a.id = aaa."{sch.albumAssetAlbumId}"
                     Where aaa."{sch.albumAssetAssetId}" = ANY(%s) And a."deletedAt" Is Null
                     Order By a."createdAt" Desc
-                    """
-                    cursor.execute(albSql, (chunk,))
+                    """)
+                    cursor.execute(albQ, (chunk,))
                     albRows = cursor.fetchall()
                     # lg.info(f"Album query returned {len(albRows)} rows for chunk {chunk}")
 
@@ -875,13 +715,13 @@ def fetchExInfos(assetIds: List[str]) -> Dict[str, models.AssetExInfo]:
                 # Fetch tags in chunks
                 for i in range(0, len(assetIds), szChunk):
                     chunk = assetIds[i:i + szChunk]
-                    tagSql = f"""
+                    tagQ = Q(f"""
                     Select ta."{sch.tagAssetAssetId}", t.id, t.value, t."userId"
                     From {sch.tag} t
-                    Join tag_asset ta On t.id = ta."{sch.tagAssetTagId}"
+                    Join {sch.tagAsset} ta On t.id = ta."{sch.tagAssetTagId}"
                     Where ta."{sch.tagAssetAssetId}" = ANY(%s)
-                    """
-                    cursor.execute(tagSql, (chunk,))
+                    """)
+                    cursor.execute(tagQ, (chunk,))
                     tagRows = cursor.fetchall()
 
                     for row in tagRows:
@@ -893,14 +733,14 @@ def fetchExInfos(assetIds: List[str]) -> Dict[str, models.AssetExInfo]:
                 # Fetch faces in chunks
                 for i in range(0, len(assetIds), szChunk):
                     chunk = assetIds[i:i + szChunk]
-                    facSql = """
+                    facSql = Q(f"""
                     Select af."assetId", af.id, af."personId", p.name, p."ownerId",
                            af."imageWidth", af."imageHeight", af."boundingBoxX1", af."boundingBoxY1",
                            af."boundingBoxX2", af."boundingBoxY2", af."sourceType"
-                    From asset_face af
+                    From {sch.assetFace} af
                     Join person p On af."personId" = p.id
-                    Where p.name != Null And af."assetId" = ANY(%s) And af."deletedAt" Is Null
-                    """
+                    Where af."assetId" = ANY(%s) And af."deletedAt" Is Null
+                    """)
                     cursor.execute(facSql, (chunk,))
                     facRows = cursor.fetchall()
 

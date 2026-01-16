@@ -207,9 +207,9 @@ def vec_RunModal(nclk_proc, nclk_clear, photoQ, dta_now, dta_cnt, dta_mdl, dta_t
 
     if trgId == K.btnDoVec:
         import chk
-        modelChk = chk.model()
-        if not modelChk.ok:
-            errMsg = modelChk.msg if isinstance(modelChk.msg, str) else '\n'.join(modelChk.msg)
+        modelOk, modelMsg = chk.model()
+        if not modelOk:
+            errMsg = modelMsg if isinstance(modelMsg, str) else '\n'.join(modelMsg)
             nfy.error(f"Model check failed: {errMsg}")
         elif cnt.ass <= 0:
             nfy.error("No asset data to process")

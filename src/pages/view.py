@@ -1,4 +1,5 @@
 import db
+from db import psql
 import json
 from conf import ks
 from dsh import dash, htm, dcc, cbk, dbc, inp, out, ste, getTrgId, noUpd, ALL
@@ -270,21 +271,25 @@ def onAssetDel(doReport: IFnProg, sto: models.ITaskStore):
     import immich
 
     try:
-
         aid = tsk.args.get('aid')
         msg = f"[Assets] Success delete #{aid}"
         if not aid: raise RuntimeError(f'No AutoId to delete')
 
         ass = db.pics.getByAutoId(aid)
+
+        with psql.mkConn() as conn:
+            with conn.cursor() as cur:
+                immich.trashByAssets([ass], cur)
+                conn.commit()
+
         db.pics.deleteBy([ass])
         db.vecs.deleteBy([aid])
-        immich.trashByAssets([ass])
 
         cnt.refreshFromDB()
 
         return sto, msg
     except Exception as e:
-        msg = f"Failed to clear user data: {str(e)}"
+        msg = f"Failed to delete asset: {str(e)}"
         nfy.error(msg)
         raise RuntimeError(msg)
 

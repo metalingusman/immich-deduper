@@ -602,6 +602,15 @@ $spac: ($pad * 2) + ($gx * 2) + $sideW + 10px;
 	&.warn {
 		@include bg-gradient(#f38c12);
 	} //#FF8C00
+	&.yellow {
+		@include bg-gradient(#d4a700);
+	}
+	&.green {
+		@include bg-gradient(#28a745);
+	}
+	&.purple {
+		@include bg-gradient(#8b5cf6);
+	}
 
 	&.sm {
 		font-size: 10px !important;
@@ -623,12 +632,29 @@ $spac: ($pad * 2) + ($gx * 2) + $sideW + 10px;
 	}
 }
 
-/* Exif info tooltip styling */
-.tooltip-exif-info .tooltip-inner {
-	padding: 10px !important;
-	background-color: rgba(20, 20, 20, 0.95) !important;
+/* Exif info popover styling */
+.popover.popover-exif-info {
+	background-color: #fff !important;
 	backdrop-filter: blur(5px) !important;
-	border: 1px solid var(--info-dkr) !important;
+	border: none !important;
+	padding: 6px !important;
+	max-width: 450px !important;
+
+	.popover-body {
+		padding: 0 !important;
+		background-color: #2d2d2d !important;
+		border-radius: 4px;
+
+        table {
+          background: #EfEfEf !important;
+		  border-radius: 6px;
+          border: #666 1px dotted;
+        }
+	}
+
+	.popover-arrow::after {
+		border-top-color: #fff !important;
+	}
 }
 
 .exif-badge {
@@ -1275,7 +1301,35 @@ $spac: ($pad * 2) + ($gx * 2) + $sideW + 10px;
 		width: 130px;
 		display: inline-block;
 	}
+
+	&.single {
+		display: flex;
+
+		> div:first-child {
+			margin-right: 10px;
+			margin-left: 0;
+		}
+
+		> div:last-child {
+			margin-left: auto;
+			text-align: right;
+
+			li { margin-left:8px; }
+		}
+	}
 }
+
+.ifns {
+	.card-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+
+		small { font-size:11px; color:#bbb; }
+	}
+}
+
+
 
 .gv {
 	.hr {
@@ -1813,6 +1867,17 @@ $notify-colors: (
 		box-shadow: 0 0 5px #fff;
 		white-space: nowrap;
 		min-width: fit-content;
+	}
+
+	.desc-content {
+		max-width: 300px;
+		white-space: pre-wrap;
+		word-break: break-word;
+		margin: 0;
+	}
+	.loc-content {
+		margin: 0;
+		font-family: monospace;
 	}
 }
 

@@ -392,6 +392,8 @@ a:hover { color: #3772FF; }
 
 .form-control:focus, .form-select:focus, .form-check-input:focus, input:focus, select:focus, textarea:focus { background-color: #484848 !important; color: #FFFFFF !important; border-color: #4ACDFF !important; box-shadow: 0 0 0 0.25rem rgba(55, 114, 255, 0.25) !important; }
 
+.form-control:disabled, .form-select:disabled, .form-check-input:disabled, input:disabled, select:disabled, textarea:disabled { background-color: #1a2a3a !important; border: 1px dashed #888 !important; color: #ccc !important; box-shadow: none !important; cursor: not-allowed; }
+
 .Select-control, .Select-menu-outer, .Select-option, .DateInput, .DateInput_input { background-color: #333333 !important; border-color: #9B9B9B !important; color: #E0E0E0 !important; }
 
 .Select-option.is-selected, .Select-option.is-focused { background-color: #444444 !important; }

@@ -553,6 +553,12 @@ h3 { font-size: 1.68rem; }
 
 .tag.warn { background: #f38c12; }
 
+.tag.yellow { background: #d4a700; }
+
+.tag.green { background: #28a745; }
+
+.tag.purple { background: #8b5cf6; }
+
 .tag.sm { font-size: 10px !important; padding: 0 2px 2px 5px; }
 
 .tag.lg { font-size: 15px !important; padding: 0 4px 2px 4px; }
@@ -561,8 +567,14 @@ h3 { font-size: 1.68rem; }
 
 .tag.no-border { border: none; }
 
-/* Exif info tooltip styling */
-.tooltip-exif-info .tooltip-inner { padding: 10px !important; background-color: rgba(20, 20, 20, 0.95) !important; backdrop-filter: blur(5px) !important; border: 1px solid var(--info-dkr) !important; }
+/* Exif info popover styling */
+.popover.popover-exif-info { background-color: #fff !important; backdrop-filter: blur(5px) !important; border: none !important; padding: 6px !important; max-width: 450px !important; }
+
+.popover.popover-exif-info .popover-body { padding: 0 !important; background-color: #2d2d2d !important; border-radius: 4px; }
+
+.popover.popover-exif-info .popover-body table { background: #EfEfEf !important; border-radius: 6px; border: #666 1px dotted; }
+
+.popover.popover-exif-info .popover-arrow::after { border-top-color: #fff !important; }
 
 .exif-badge { cursor: pointer !important; transition: all 0.2s ease-in-out !important; }
 
@@ -756,6 +768,18 @@ h3 { font-size: 1.68rem; }
 
 .icbxs input { padding: 0 3px 0 3px; width: 130px; display: inline-block; }
 
+.icbxs.single { display: flex; }
+
+.icbxs.single > div:first-child { margin-right: 10px; margin-left: 0; }
+
+.icbxs.single > div:last-child { margin-left: auto; text-align: right; }
+
+.icbxs.single > div:last-child li { margin-left: 8px; }
+
+.ifns .card-header { display: flex; justify-content: space-between; align-items: baseline; }
+
+.ifns .card-header small { font-size: 11px; color: #bbb; }
+
 .gv .hr { grid-column: 1 / -1; width: 100%; padding: 0.5rem 0; border-bottom: #999999 1px dashed; }
 
 .gv .hr label { background: #6daa2b; border-radius: 6px; border: #6daa2b; padding: 5px 12px 7px 12px; text-shadow: 0 0 3px #4a4a4a; box-shadow: 0 0 3px #6daa2b; }
@@ -888,6 +912,10 @@ h3 { font-size: 1.68rem; }
 .poptip { display: none; z-index: 20; }
 
 .poptip > div { padding: 8px 12px; border-radius: 8px; background: #333333cc; box-shadow: 0 0 5px #fff; white-space: nowrap; min-width: fit-content; }
+
+.poptip .desc-content { max-width: 300px; white-space: pre-wrap; word-break: break-word; margin: 0; }
+
+.poptip .loc-content { margin: 0; font-family: monospace; }
 
 .poptip-arrow { position: absolute; z-index: 21; color: #333333cc; font-size: 16px; }
 

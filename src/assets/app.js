@@ -69,46 +69,35 @@ function onFetchedChk( loading, data ){
 	console.info( `[load] check data: ${ JSON.stringify(data) }` )
 
 	let errK = false
+	let verItem = null
 
 	let sc = document.querySelector('.card-system-cfgs')
 	if( sc ) {
+		for( let item of data ) {
+			if( item.key === 'ver' ) { verItem = item; continue }
+			if( !item.ok && !errK ) errK = item.key
 
-		let keys = ['logic', 'path', 'data', 'psql', 'vec', 'model']
-
-		for( let idx in keys ) {
-			let k = keys[idx]
-
-			let ste = data[k]
-			if( !ste.ok ) errK = k
-
-
-			let div = sc.querySelector(`.chk-${k}`)
+			let div = sc.querySelector(`.chk-${item.key}`)
 			if( !div ) continue
 
 			let i = div.querySelector(`i`)
-			let s = div.querySelector(`small`)
-			if( !i || !s ) continue
+			if( !i ) continue
 
-			if( !ste.ok ) {
+			if( !item.ok ) {
 				i.className = `bi bi-x-circle-fill text-white me-2`
 				div.classList.add(`bg-danger`, `text-white`, `divtip`)
-
-				// tooltip
-				let errorMsg = Array.isArray(ste.msg) ? ste.msg.join('\n') : ste.msg
+				let errorMsg = item.msg.join('\n')
 				div.setAttribute('data-tooltip', errorMsg)
 				div.style.cursor = 'help'
 			}
 			else {
 				i.className = `bi bi-check-circle-fill text-success me-2`
-
 				div.classList.remove(`divtip`)
 				div.removeAttribute('data-tooltip')
 				div.style.cursor = 'default'
 			}
 		}
 	}
-
-	// update env card
 
 	TskWS.init(
 		()=>{
@@ -123,8 +112,8 @@ function onFetchedChk( loading, data ){
 				sp.classList.add('red')
 			}
 
-			if( !data.ver.ok ) {
-				let msg = data.ver.msg.join( '\n' )
+			if( verItem && !verItem.ok ) {
+				let msg = verItem.msg.join( '\n' )
 				let isNewVer = msg.includes('New version')
 
 				if( isNewVer ) {
@@ -133,11 +122,11 @@ function onFetchedChk( loading, data ){
 					notify.load( msg, 'warn' ).run( 30000 )
 				}
 
-				sp.innerText = data.ver.msg[0]
+				sp.innerText = verItem.msg[0]
 				sp.classList.remove('info',`second`)
 				sp.classList.add('warn')
-			} else {
-				sp.innerText = `ver:${data.ver.msg[0]}`
+			} else if( verItem ) {
+				sp.innerText = `ver:${verItem.msg[0]}`
 			}
 
 
@@ -157,7 +146,7 @@ function onFetchedChk( loading, data ){
 		( msg )=>{
 			let sp = document.querySelector( "#span-sys-chk" )
 			if( !sp ) { Nfy.error(`[chk] span-sys-chk not exist?`); return }
-			sp.innerText = `Failed`
+			sp.innerText = msg ? `Failed: ${msg}` : `Failed`
 			sp.classList.add('red')
 			loading.closeNo( `system check failed, ${msg}` )
 		}

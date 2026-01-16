@@ -118,7 +118,22 @@ class AssetExInfo(BaseDictModel):
     albs: List[Album] = field(default_factory=list)
     facs: List[AssetFace] = field(default_factory=list)
     tags: List[Tags] = field(default_factory=list)
+    visibility: str = "timeline"
+    rating: int = 0
+    description: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
 
+
+@dataclass
+class Library(BaseDictModel):
+    id: str = ""
+    name: str = ""
+    ownerId: str = ""
+    importPaths: List[str] = field(default_factory=list)
 
 @dataclass
 class Asset(BaseDictModel):
@@ -127,9 +142,11 @@ class Asset(BaseDictModel):
     ownerId: str = ""
     deviceId: Optional[str] = None
     vdoId: Optional[str] = None
+    libId: Optional[str] = None
     type: Optional[str] = None
     originalFileName: str = ""
     originalPath: str = ""
+    sidecarPath: Optional[str] = None
     fileCreatedAt: Optional[str] = None
     fileModifiedAt: Optional[str] = None
     isFavorite: int = 0
@@ -150,7 +167,8 @@ class Asset(BaseDictModel):
     vw: AssetViewOnly = field(default_factory=AssetViewOnly)
 
     def getImagePath(self, photoQ=None):
-        path = envs.pth.forImg(self.pathThumbnail, self.pathPreview, photoQ)
+        import rtm
+        path = rtm.pth.forImg(self.pathThumbnail, self.pathPreview, photoQ)
         if not path: raise RuntimeError(f"the thumbnail path is empty, assetId[{self.id}]")
         return path
 

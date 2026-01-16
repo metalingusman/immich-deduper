@@ -4,6 +4,7 @@ import time
 
 import immich
 import db
+from db import psql
 from conf import ks, co
 from dsh import dash, htm, dcc, dbc, inp, out, ste, getTrgId, noUpd, ctx, ALL
 from dsh import cbk, ccbk, cbkFn
@@ -98,6 +99,7 @@ def layout(autoId=None):
             dbc.Col([
                 #------------------------------------------------------------------------
                 cardSets.renderThreshold(),
+                cardSets.renderMerge(),
                 cardSets.renderAutoSelect(),
                 #------------------------------------------------------------------------
             ], width=5),
@@ -687,18 +689,42 @@ def sim_RunModal(
     elif trgId == k.btnRmSel:
         assSel = ste.getSelected(now.sim.assCur)
         assAll = now.sim.assCur
+        assKeep = [a for a in assAll if a.autoId not in {s.autoId for s in assSel}]
         cnt = len(assSel)
 
         lg.info(f"[sim:delSels] {cnt} assets selected")
 
         if cnt > 0:
+            if db.dto.mrg:
+                errs = immich.validateKeepPaths(assKeep)
+                if errs:
+                    nfy.error(f"Cannot merge: {errs[0]}")
+                    return noUpd.by(5).upd(0, nfy)
+
             mdl.reset()
             mdl.id = ks.pg.similar
             mdl.cmd = ks.cmd.sim.selRm
             mdl.msg = [
-                f"Are you sure you want to Delete select images( {cnt} ) and Keep others( {len(assAll)-cnt} )?", htm.Br(),
+                f"Are you sure you want to Delete select images( {cnt} ) and Keep others( {len(assKeep)} )?", htm.Br(),
                 htm.B("This operation cannot be undone"),
             ]
+
+            if db.dto.mrg:
+                mrgAttrs = []
+                if db.dto.mrg_Albums: mrgAttrs.append("Albums")
+                if db.dto.mrg_Favorites: mrgAttrs.append("Favorites")
+                if db.dto.mrg_Tags: mrgAttrs.append("Tags")
+                if db.dto.mrg_Rating: mrgAttrs.append("Rating")
+                if db.dto.mrg_Description: mrgAttrs.append("Description")
+                if db.dto.mrg_Location: mrgAttrs.append("Location")
+                if db.dto.mrg_Visibility: mrgAttrs.append("Visibility")
+                keepAids = [f"#{a.autoId}" for a in assKeep]
+                mdl.msg.extend([
+                    htm.Br(), htm.Br(),
+                    htm.Span("Metadata Merge Enabled", className="text-warning fw-bold"), htm.Br(),
+                    f"Attributes: {', '.join(mrgAttrs)}", htm.Br(),
+                    f"Merge to: {', '.join(keepAids)}",
+                ])
 
             if nchkRmSel:
                 retTsk = mdl.mkTsk()
@@ -708,18 +734,42 @@ def sim_RunModal(
     elif trgId == k.btnOkSel:
         assSel = ste.getSelected(now.sim.assCur)
         assAll = now.sim.assCur
+        assOthers = [a for a in assAll if a.autoId not in {s.autoId for s in assSel}]
         cnt = len(assSel)
 
         lg.info(f"[sim:resolveSels] {cnt} assets selected")
 
         if cnt > 0:
+            if db.dto.mrg:
+                errs = immich.validateKeepPaths(assSel)
+                if errs:
+                    nfy.error(f"Cannot merge: {errs[0]}")
+                    return noUpd.by(5).upd(0, nfy)
+
             mdl.reset()
             mdl.id = ks.pg.similar
             mdl.cmd = ks.cmd.sim.selOk
             mdl.msg = [
-                f"Are you sure you want to Resolve selected images( {cnt} ) and Delete others( {len(assAll) - cnt} )?", htm.Br(),
+                f"Are you sure you want to Resolve selected images( {cnt} ) and Delete others( {len(assOthers)} )?", htm.Br(),
                 htm.B("This operation cannot be undone"),
             ]
+
+            if db.dto.mrg:
+                mrgAttrs = []
+                if db.dto.mrg_Albums: mrgAttrs.append("Albums")
+                if db.dto.mrg_Favorites: mrgAttrs.append("Favorites")
+                if db.dto.mrg_Tags: mrgAttrs.append("Tags")
+                if db.dto.mrg_Rating: mrgAttrs.append("Rating")
+                if db.dto.mrg_Description: mrgAttrs.append("Description")
+                if db.dto.mrg_Location: mrgAttrs.append("Location")
+                if db.dto.mrg_Visibility: mrgAttrs.append("Visibility")
+                keepAids = [f"#{a.autoId}" for a in assSel]
+                mdl.msg.extend([
+                    htm.Br(), htm.Br(),
+                    htm.Span("Metadata Merge Enabled", className="text-warning fw-bold"), htm.Br(),
+                    f"Attributes: {', '.join(mrgAttrs)}", htm.Br(),
+                    f"Merge to: {', '.join(keepAids)}",
+                ])
 
             if ncRS:
                 retTsk = mdl.mkTsk()
@@ -1020,6 +1070,7 @@ def sim_ClearSims(doReport: IFnProg, sto: models.ITaskStore):
 
 def sim_SelectedDelete(doReport: IFnProg, sto: models.ITaskStore):
     nfy, now, ste = sto.nfy, sto.now, sto.ste
+    xmpInfos = []
     try:
         assAlls = now.sim.assCur
         assSels = ste.getSelected(assAlls) if ste else []
@@ -1030,9 +1081,28 @@ def sim_SelectedDelete(doReport: IFnProg, sto: models.ITaskStore):
 
         if not assSels or cntSelect == 0: raise RuntimeError("Selected not found")
 
+        with psql.mkConn() as conn:
+            with conn.cursor() as cur:
+                if db.dto.mrg:
+                    opts = immich.MergeOpts(
+                        albums=db.dto.mrg_Albums,
+                        favorites=db.dto.mrg_Favorites,
+                        tags=db.dto.mrg_Tags,
+                        rating=db.dto.mrg_Rating,
+                        description=db.dto.mrg_Description,
+                        location=db.dto.mrg_Location,
+                        visibility=db.dto.mrg_Visibility
+                    )
+                    result = immich.mergeMetadata(assLefts, assSels, opts, cur)
+                    xmpInfos = result.get('xmpInfos', [])
+
+                immich.trashByAssets(assSels, cur)
+                conn.commit()
+
         db.pics.deleteBy(assSels)
-        db.pics.setResloveBy(assLefts)  # set unselected to resloved
-        immich.trashByAssets(assSels)
+        db.pics.setResloveBy(assLefts)
+
+        if xmpInfos: immich.cleanupXmpBak(xmpInfos)
 
         now.sim.clearAll()
         sto.ste.clear()
@@ -1046,6 +1116,7 @@ def sim_SelectedDelete(doReport: IFnProg, sto: models.ITaskStore):
 
         return sto, msg
     except Exception as e:
+        if xmpInfos: immich.restoreXmpBak(xmpInfos)
         msg = f"[sim] Delete selected failed: {str(e)}"
         nfy.error(msg)
         lg.error(traceback.format_exc())
@@ -1057,6 +1128,7 @@ def sim_SelectedDelete(doReport: IFnProg, sto: models.ITaskStore):
 
 def sim_SelectedReslove(doReport: IFnProg, sto: models.ITaskStore):
     nfy, now, ste = sto.nfy, sto.now, sto.ste
+    xmpInfos = []
     try:
         assAlls = now.sim.assCur
         assSels = ste.getSelected(assAlls) if ste else []
@@ -1070,10 +1142,30 @@ def sim_SelectedReslove(doReport: IFnProg, sto: models.ITaskStore):
 
         lg.info(f"[sim:selOk] reslove assets[{cntSelect}] delete[ {cntOthers} ]")
 
+        with psql.mkConn() as conn:
+            with conn.cursor() as cur:
+                if db.dto.mrg:
+                    opts = immich.MergeOpts(
+                        albums=db.dto.mrg_Albums,
+                        favorites=db.dto.mrg_Favorites,
+                        tags=db.dto.mrg_Tags,
+                        rating=db.dto.mrg_Rating,
+                        description=db.dto.mrg_Description,
+                        location=db.dto.mrg_Location,
+                        visibility=db.dto.mrg_Visibility
+                    )
+                    result = immich.mergeMetadata(assSels, assOthers, opts, cur)
+                    xmpInfos = result.get('xmpInfos', [])
+
+                if assOthers:
+                    immich.trashByAssets(assOthers, cur)
+                conn.commit()
+
         if assOthers: db.pics.deleteBy(assOthers)
         db.pics.setResloveBy(assSels)
 
-        if assOthers: immich.trashByAssets(assOthers)
+        if xmpInfos:
+            immich.cleanupXmpBak(xmpInfos)
 
         now.sim.clearAll()
         sto.ste.clear()
@@ -1085,6 +1177,8 @@ def sim_SelectedReslove(doReport: IFnProg, sto: models.ITaskStore):
 
         return sto, msg
     except Exception as e:
+        if xmpInfos:
+            immich.restoreXmpBak(xmpInfos)
         msg = f"[sim] Resolve selected failed: {str(e)}"
         nfy.error(msg)
         lg.error(traceback.format_exc())
@@ -1136,8 +1230,12 @@ def sim_AllDelete(doReport: IFnProg, sto: models.ITaskStore):
 
         lg.info(f"[sim:allDel] delete assets[{cntAll}] ")
 
+        with psql.mkConn() as conn:
+            with conn.cursor() as cur:
+                immich.trashByAssets(assets, cur)
+                conn.commit()
+
         db.pics.deleteBy(assets)
-        immich.trashByAssets(assets)
 
         now.sim.clearAll()
         sto.ste.clear()

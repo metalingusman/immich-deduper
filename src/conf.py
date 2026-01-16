@@ -254,7 +254,7 @@ def pathFromRoot(path):
 # envs
 #------------------------------------------------------------------------
 class envs:
-    version='0.1.16'
+    version='0.2.0'
     isDev = False if isDock else bool(os.getenv('IsDev', False))
     isDevUI = False if isDock else bool(os.getenv('IsDevUI', False))
     isDock = False if not isDock else True
@@ -274,56 +274,6 @@ class envs:
     else:
         mkitData = 'data/' if isDock else os.getenv('DEDUP_DATA', os.path.join(pathRoot, 'data/'))
         if not mkitData.endswith('/'): mkitData += '/'
-
-    class pth:
-        @staticmethod
-        def base(path: Optional[str]) -> str:
-            if not path: return ""
-
-            mth = re.match(r'^(?:.*/)?(?:thumbs|encoded-video)/(.+)$', path)
-            if mth: return mth.group(1)
-            return ""
-
-        @staticmethod
-        def normalize(path: Optional[str]) -> str:
-            if not path: return ""
-
-            basePath = envs.pth.base(path)
-            if basePath:
-                if '/thumbs/' in path or path.startswith('thumbs/'):
-                    return f"thumbs/{basePath}"
-                elif '/encoded-video/' in path or path.startswith('encoded-video/'):
-                    return f"encoded-video/{basePath}"
-
-            return path
-
-        @staticmethod
-        def full(path: Optional[str]) -> str:
-            if not path: return ""
-
-            nor = envs.pth.normalize(path)
-            if not nor: return ""
-
-            if os.path.isabs(nor): return nor
-
-            if envs.immichThumb and nor.startswith('thumbs/'):
-                fullPath = os.path.join(envs.immichThumb, nor.replace('thumbs/', ''))
-                return os.path.normpath(fullPath)
-
-            if nor.startswith(envs.immichPath): return nor
-
-            fullPath = os.path.join(envs.immichPath, nor)
-            return os.path.normpath(fullPath)
-
-        @staticmethod
-        def forImg(pathThumb: Optional[str], pathPreview: Optional[str] = None, photoQ: Optional[str] = None) -> str:
-            if photoQ == ks.db.preview and pathPreview:
-                return envs.pth.full(pathPreview)
-            if pathThumb:
-                return envs.pth.full(pathThumb)
-            if pathPreview:
-                return envs.pth.full(pathPreview)
-            return ""
 
     @staticmethod
     def showVars():

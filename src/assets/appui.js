@@ -156,7 +156,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 	const root = document.body
 
 	function bindEvts(){
-		const sps = document.querySelectorAll( 'span[class*="tag"]' )
+		const sps = document.querySelectorAll( 'span[class*="tag"]:not(.no)' )
 		sps.forEach( span => {
 			if ( span._hoverEventsBound ) return
 
@@ -199,7 +199,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 	root.addEventListener( 'click', async ( event ) => {
 		const dst = event.target
 
-		const span = dst.closest( 'span[class*="tag"]' )
+		const span = dst.closest( 'span[class*="tag"]:not(.no)' )
 		if ( span )
 		{
 			if ( span.hasAttribute( 'data-tip-id' ) ){
