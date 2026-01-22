@@ -365,31 +365,44 @@ def testAssetsPath():
                 cursor.execute(sql)
                 rows = cursor.fetchall()
 
-                isOk = False
-
-                # lg.info( f"[psql] test AccessPath.. fetched: {len(rows)}" )
-
                 if not rows or not len(rows): return "No Assets"
 
                 for row in rows:
                     pathDB = row.get("path", "")
                     if pathDB:
-                        original_path = pathDB
+                        originalPath = pathDB
                         pathFi = rtm.pth.full(pathDB)
-                        isOk = os.path.exists(pathFi)
-                        # lg.info( f"[psql] test isOk[{isOk}] path: {path}" )
-                        if isOk: return [ "OK" ]
-                        else:
-                            return [
-                                "Asset file not found at expected path:",
-                                f"  {pathFi}",
-                                "",
-                                "This path was constructed from:",
-                                "  IMMICH_PATH + DB Path",
-                                f"  DB Path: '{original_path}'",
-                                "",
-                                "Please verify IMMICH_PATH environment variable matches your Immich installation path."
-                            ]
+                        lg.info(f"[psql] testPath: DB[{originalPath}] → full[{pathFi}]")
+
+                        if os.path.exists(pathFi):
+                            lg.info(f"[psql] testPath: OK")
+                            return ["OK"]
+
+                        # Docker mode: try host path mapping
+                        if envs.isDock and envs.immichPathHost:
+                            hostPth = envs.immichPathHost.rstrip('/')
+                            contPth = rtm.immichPath.rstrip('/')
+                            lg.info(f"[psql] testPath: trying mapping host[{hostPth}] → cont[{contPth}]")
+
+                            if originalPath.startswith(hostPth + '/') or originalPath == hostPth:
+                                mappedPath = originalPath.replace(hostPth, contPth, 1)
+                                lg.info(f"[psql] testPath: mapped[{mappedPath}] exists[{os.path.exists(mappedPath)}]")
+
+                                if os.path.exists(mappedPath):
+                                    rtm.pathHostMap[hostPth] = contPth
+                                    lg.info(f"[psql] Path mapping enabled: {hostPth} → {contPth}")
+                                    return ["OK", f"Path mapping: {hostPth} → {contPth}"]
+
+                        return [
+                            "Asset file not found at expected path:",
+                            f"  {pathFi}",
+                            "",
+                            "This path was constructed from:",
+                            "  IMMICH_PATH + DB Path",
+                            f"  DB Path: '{originalPath}'",
+                            "",
+                            "Please verify IMMICH_PATH environment variable matches your Immich installation path."
+                        ]
 
                 return [
                     "Asset path test failed.",

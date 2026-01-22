@@ -11,6 +11,7 @@ from conf import envs, ks
 immichPath: str
 immichThumb: str
 libPaths: Dict[str, str]
+pathHostMap: Dict[str, str] = {}
 
 _fieldMap = {
     'immichPath': 'pathImmich',
@@ -61,6 +62,12 @@ class pth:
 
         # /data → pathImmich
         if nor.startswith('/data/') and dto.pathImmich: return nor.replace('/data', dto.pathImmich, 1)
+
+        # Docker mode: use verified host path mapping
+        for hostPth, contPth in pathHostMap.items():
+            hostPth = hostPth.rstrip('/')
+            if nor.startswith(hostPth + '/') or nor == hostPth:
+                return nor.replace(hostPth, contPth.rstrip('/'), 1)
 
         if os.path.isabs(nor): return nor
 

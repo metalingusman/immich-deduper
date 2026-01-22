@@ -56,24 +56,24 @@ GPU_ONLY=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --upload)
+    -up)
       UPLOAD=true
       shift
       ;;
-    --gpu)
+    -gpu)
       GPU_ONLY=true
       shift
       ;;
-    --tag)
+    -tag)
       TAG="$2"
       shift 2
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--upload] [--gpu] [--tag TAG]"
-      echo "  --upload: Push images to Docker Hub"
-      echo "  --gpu:    Build only CUDA version (can combine with --upload)"
-      echo "  --tag:    Use custom tag instead of version from pyproject.toml"
+      echo "Usage: $0 [-up] [-gpu] [-tag TAG]"
+      echo "  -up: Push images to Docker Hub"
+      echo "  -gpu:    Build only CUDA version (can combine with -up)"
+      echo "  -tag:    Use custom tag instead of version from pyproject.toml"
       exit 1
       ;;
   esac
@@ -118,15 +118,15 @@ build_image() {
   local tag_suffix=$2
   local platforms=$3
   local load_flag=$4
-  
+
   echo "Building ${device} image: ${IMAGE_NAME}:${TAG}${tag_suffix}"
-  
+
   BUILD_ARGS=(
     "--build-arg" "DEDUP_PORT=8086"
     "--build-arg" "DEVICE=${device}"
     "."
   )
-  
+
   if [ "$load_flag" = "--load" ]; then
     if [ -z "$tag_suffix" ]; then
       # CPU version: only TAG for local builds
@@ -166,7 +166,7 @@ build_image() {
 
 if [ "$UPLOAD" = true ]; then
   echo "Building multi-platform Docker images and pushing to Docker Hub"
-  
+
   if [ "$GPU_ONLY" = true ]; then
     echo "Building CUDA version only"
     # Build CUDA version (AMD64 only for CUDA)
@@ -174,22 +174,22 @@ if [ "$UPLOAD" = true ]; then
     echo "Successfully built and pushed CUDA version."
   else
     PLATFORMS="linux/amd64,linux/arm64/v8"
-    
+
     # Build CPU version
     build_image "cpu" "" "${PLATFORMS}" ""
-    
+
     # Build CUDA version (AMD64 only for CUDA)
     build_image "cuda" "-cuda" "linux/amd64" ""
-    
+
     echo "Successfully built and pushed both CPU and CUDA versions for multiple platforms."
   fi
 
 else
   echo "Building Docker images for current host platform and loading to local Docker daemon (not pushing)."
-  echo "To build and push multi-platform images, run with --upload option."
+  echo "To build and push multi-platform images, run with -up option."
 
   CURRENT_PLATFORM="linux/$(uname -m | sed 's/aarch64/arm64/' | sed 's/x86_64/amd64/')"
-  
+
   if [ "$GPU_ONLY" = true ]; then
     echo "Building CUDA version only"
     # Always build for AMD64 since CUDA requires it, regardless of current platform
@@ -198,11 +198,11 @@ else
   else
     # Build CPU version
     build_image "cpu" "" "${CURRENT_PLATFORM}" "--load"
-    
+
     # Build CUDA version for AMD64 (using buildx cross-compilation if needed)
     echo "Building CUDA version for AMD64 platform"
     build_image "cuda" "-cuda" "linux/amd64" "--load"
-    
+
     echo "Successfully built and loaded images for local testing."
   fi
 fi
