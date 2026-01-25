@@ -96,6 +96,14 @@ def layout():
 
                 dbc.Row([
                     dbc.Col([
+                        htm.Ul([
+                            htm.Li(["Searching with 'Find similar #number' follows your Similar configurations"]),
+                        ])
+                    ], width=12),
+                ]),
+
+                dbc.Row([
+                    dbc.Col([
                     ], width=2, className="ms-auto"),
                 ], className="mt-2"),
             ])

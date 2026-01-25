@@ -210,6 +210,12 @@ def findGroupBy(asset: models.Asset, doReport: IFnProg, grpId: int, fromUrl=Fals
             db.pics.setSimInfos(asset.autoId, bseInfos, isOk=1)
             return result
 
+    if db.dto.excl and db.dto.excl_FndOvr > 0:
+        if len(simAids) > db.dto.excl_FndOvr:
+            lg.info(f"[sim:ss] Excluding #{asset.autoId}, similar count({len(simAids)}) > threshold({db.dto.excl_FndOvr})")
+            db.pics.setSimInfos(asset.autoId, bseInfos, isOk=1)
+            return result
+
     rootGID = asset.autoId
     db.pics.setSimGIDs(asset.autoId, rootGID)
     db.pics.setSimInfos(asset.autoId, bseInfos)

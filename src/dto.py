@@ -102,6 +102,7 @@ class DtoSets:
 
     excl:bool = AutoDbField('excl', bool, True ) #type:ignore
     excl_FndLes:int = AutoDbField('excl_FndLes', int, 0) #type:ignore
+    excl_FndOvr:int = AutoDbField('excl_FndOvr', int, 0) #type:ignore
     excl_FilNam:str = AutoDbField('excl_FilNam', str, '') #type:ignore
 
     gpuAutoMode:bool = AutoDbField('gpuAutoMode', bool, True) #type:ignore

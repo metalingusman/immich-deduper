@@ -22,6 +22,7 @@ class k:
 
     exclEnable = "exclEnable"
     exclFndLess = "exclFndLess"
+    exclFndOver = "exclFndOver"
     exclFilName = "exclFilName"
 
     muodEnable = "muodEnable"
@@ -126,10 +127,11 @@ def _getUsrWgtVal():
     _, wgt = _parseUsrPri()
     return wgt
 
-optExclLess = [
-    {"label": "--", "value": 0},
-]
+optExclLess = [ {"label": "--", "value": 0} ]
 for i in range(1,6): optExclLess.append({"label": f" < {i}", "value": i})
+
+optExclOver = [ {"label": "--", "value": 0} ]
+for i in [10,20,30,50,100]: optExclOver.append({"label": f" > {i}", "value": i})
 
 optGpuBatch = {}
 for i in [1, 2, 4, 8, 12, 16, 24, 32, 48, 64]: optGpuBatch[str(i)] = i
@@ -362,17 +364,21 @@ def renderCard():
                     htm.Span("", className="txt-smx text-muted ms-3")
                 ], className="txt-sm"),
                 htm.Div([
-                    dbc.Checkbox(id=k.id(k.exclEnable), label="Enable", value=db.dto.excl),
+                    dbc.Checkbox(id=k.id(k.exclEnable), label="Enable", value=db.dto.excl, className="txt-sm"),
 
                     htm.Div([
-                        htm.Label("Similar Less: "),
-                        dbc.Select(id=k.id(k.exclFndLess), options=optExclLess, value=db.dto.excl_FndLes, className="", disabled=not db.dto.excl) #type:ignore
+                        htm.Label("SimilarLess: ", className="txt-sm"),
+                        dbc.Select(id=k.id(k.exclFndLess), options=optExclLess, value=db.dto.excl_FndLes, className="txt-smx", disabled=not db.dto.excl, style={"maxWidth":"30px"}) #type:ignore
                     ]),
 
                     htm.Div([
-                        htm.Label("NameFilter"),
-                        dbc.Input( id=k.id(k.exclFilName), maxlength=100, placeholder='separate by ","', value=db.dto.excl_FilNam, disabled=not db.dto.excl )
-                        # dbc.Select(id=k.id(k.exclFndLess), options=optExclLess, value=db.dto.excl_FndLes, className="", disabled=not db.dto.excl) #type:ignore
+                        htm.Label("SimilarOver: ", className="txt-sm"),
+                        dbc.Select(id=k.id(k.exclFndOver), options=optExclOver, value=db.dto.excl_FndOvr, className="txt-smx", disabled=not db.dto.excl, style={"maxWidth":"30px"}) #type:ignore
+                    ]),
+
+                    htm.Div([
+                        htm.Label("NameFilter", className="txt-sm"),
+                        dbc.Input( id=k.id(k.exclFilName), maxlength=70, placeholder='separate by ","', value=db.dto.excl_FilNam, disabled=not db.dto.excl, className="txt-sm", style={"maxWidth": "80px"} )
                     ]),
 
                     # htm.Br(),
@@ -549,22 +555,25 @@ def autoSelect_OnUpd(enable, skipLo, onlyLive, earl, late, exRich, exPoor, szBig
 @cbk(
     [
         out(k.id(k.exclFndLess), "disabled"),
+        out(k.id(k.exclFndOver), "disabled"),
         out(k.id(k.exclFilName), "disabled"),
     ],
     inp(k.id(k.exclEnable), "value"),
     inp(k.id(k.exclFndLess), "value"),
+    inp(k.id(k.exclFndOver), "value"),
     inp(k.id(k.exclFilName), "value"),
     prevent_initial_call=True
 )
-def excludeSettings_OnUpd(enable, fndLess, filName):
+def excludeSettings_OnUpd(enable, fndLess, fndOver, filName):
     db.dto.excl = enable
     db.dto.excl_FndLes = fndLess
+    db.dto.excl_FndOvr = fndOver
     db.dto.excl_FilNam = filName
 
-    lg.info(f"[exclSets:OnUpd] Enable[{enable}] FndLess[{fndLess}] FilName[{filName}]")
+    lg.info(f"[exclSets:OnUpd] Enable[{enable}] FndLess[{fndLess}] FndOver[{fndOver}] FilName[{filName}]")
 
     dis = not enable
-    return [dis] * 2
+    return [dis] * 3
 
 
 def renderGpuSettings():
