@@ -445,15 +445,17 @@ For custom environments and development needs.
 ### Environment Variables Reference
 
 **Path Variables:**
-- **Docker**: 
-  - `IMMICH_PATH`, `IMMICH_THUMB` refer to container paths (must match volume mount targets).
-  - `DEDUP_DATA` is used for host-side volume mount; inside the container, data is always at `/app/data`.
-- **Source**: All path variables refer directly to your filesystem paths.
+- `DEDUP_DATA`: Deduper data directory (database, logs, cache).
+  - **Docker**: Compose mounts to `/app/data`.
+  - **Source**: Used directly.
+- **Docker**:
+  - `IMMICH_PATH`: Your Immich `UPLOAD_LOCATION` path (folder containing `thumbs`, `library`). Compose mounts it to `/immich`.
+  - `IMMICH_THUMB`: (Optional) Separate thumbnail directory. Compose mounts it to `/thumbs`.
+- **Source**: `IMMICH_PATH`, `IMMICH_THUMB` refer directly to your filesystem paths.
 
-**Path Mapping (Docker only):**  
-> If your Immich database stores host paths instead of container paths,  
-> set `IMMICH_PATH_HOST` to the original host path.  
-> Deduper will auto-detect and map paths (e.g., `/mnt/photos/upload/...` → `/immich/...`).
+**Path Mapping (Docker only):**
+> If your Immich database stores original host paths (e.g., `/mnt/photos/upload/...`),
+> Deduper automatically detects and translates them to container paths (`/immich/...`).
 
 ---
 

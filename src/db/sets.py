@@ -8,9 +8,28 @@ from util import log
 lg = log.get(__name__)
 
 pathDb = envs.ddupData + 'sets.db'
+_initialized = False
+
+def _ensureInit():
+    global _initialized
+    if _initialized: return
+    conn = sqlite3.connect(pathDb, check_same_thread=False, timeout=30.0)
+    try:
+        c = conn.cursor()
+        c.execute('''
+            Create Table If Not Exists settings (
+               key TEXT Primary Key,
+               val TEXT
+            )
+        ''')
+        conn.commit()
+    finally:
+        conn.close()
+    _initialized = True
 
 @contextmanager
 def mkConn():
+    _ensureInit()
     conn = sqlite3.connect(pathDb, check_same_thread=False, timeout=30.0)
     conn.execute("PRAGMA busy_timeout = 30000")
     try:
@@ -23,16 +42,8 @@ def close():
     return True
 
 def init():
-    with mkConn() as conn:
-        c = conn.cursor()
-        c.execute('''
-            Create Table If Not Exists settings (
-               key TEXT Primary Key,
-               val TEXT
-            )
-        ''')
-        conn.commit()
-        lg.info( f"[sets] db connected: {pathDb}" )
+    _ensureInit()
+    lg.info( f"[sets] db connected: {pathDb}" )
 
 def get(key, defaultValue=None):
     try:

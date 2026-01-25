@@ -417,7 +417,7 @@ def settings_OnUpd(th, auNxt, shGdInfo, rtree,  maxItems, muodEnable, muodDate, 
 
     now = models.Now.fromDic(dta_now)
 
-    db.dto.thMin = co.vad.float(th, 0.93, 0.50, 0.99)
+    db.dto.thMin = co.vad.float(th, 0.93, 0.50, 1.0)
 
     db.dto.autoNext = auNxt
     db.dto.rtreeMax = maxItems

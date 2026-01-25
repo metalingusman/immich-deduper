@@ -116,7 +116,7 @@ def layout(autoId=None):
                     ], width=6),
 
                     dbc.Col([
-                        dbc.Button("Clear record & Keep resloved", id=k.btnClear, color="danger me-1", className="w-100 mb-1", disabled=True),
+                        dbc.Button("Clear record & Keep resolved", id=k.btnClear, color="danger me-1", className="w-100 mb-1", disabled=True),
                         dbc.Button("Reset records", id=k.btnReset, color="danger", className="w-58", disabled=True),
                     ], width=6, className="text-end"),
                 ], className="mt-3"),
@@ -800,13 +800,13 @@ def sim_RunModal(
         assSel = now.sim.assCur
         cnt = len(assSel)
 
-        lg.info(f"[sim:reslove] {cnt} assets")
+        lg.info(f"[sim:resolve] {cnt} assets")
 
         if cnt > 0:
             mdl.reset()
             mdl.id = ks.pg.similar
             mdl.cmd = ks.cmd.sim.allOk
-            mdl.msg = f"Are you sure mark resloved current images( {cnt} )?"
+            mdl.msg = f"Are you sure mark resolved current images( {cnt} )?"
 
             if nchkOkAll:
                 retTsk = mdl.mkTsk()
@@ -1100,7 +1100,7 @@ def sim_SelectedDelete(doReport: IFnProg, sto: models.ITaskStore):
                 conn.commit()
 
         db.pics.deleteBy(assSels)
-        db.pics.setResloveBy(assLefts)
+        db.pics.setResolveBy(assLefts)
 
         if xmpInfos: immich.cleanupXmpBak(xmpInfos)
 
@@ -1126,7 +1126,7 @@ def sim_SelectedDelete(doReport: IFnProg, sto: models.ITaskStore):
         raise RuntimeError(msg)
 
 
-def sim_SelectedReslove(doReport: IFnProg, sto: models.ITaskStore):
+def sim_SelectedResolve(doReport: IFnProg, sto: models.ITaskStore):
     nfy, now, ste = sto.nfy, sto.now, sto.ste
     xmpInfos = []
     try:
@@ -1140,7 +1140,7 @@ def sim_SelectedReslove(doReport: IFnProg, sto: models.ITaskStore):
 
         if not assSels or cntSelect == 0: raise RuntimeError("Selected not found")
 
-        lg.info(f"[sim:selOk] reslove assets[{cntSelect}] delete[ {cntOthers} ]")
+        lg.info(f"[sim:selOk] resolve assets[{cntSelect}] delete[ {cntOthers} ]")
 
         with psql.mkConn() as conn:
             with conn.cursor() as cur:
@@ -1162,7 +1162,7 @@ def sim_SelectedReslove(doReport: IFnProg, sto: models.ITaskStore):
                 conn.commit()
 
         if assOthers: db.pics.deleteBy(assOthers)
-        db.pics.setResloveBy(assSels)
+        db.pics.setResolveBy(assSels)
 
         if xmpInfos:
             immich.cleanupXmpBak(xmpInfos)
@@ -1188,17 +1188,17 @@ def sim_SelectedReslove(doReport: IFnProg, sto: models.ITaskStore):
         raise RuntimeError(msg)
 
 
-def sim_AllReslove(doReport: IFnProg, sto: models.ITaskStore):
+def sim_AllResolve(doReport: IFnProg, sto: models.ITaskStore):
     nfy, now, cnt = sto.nfy, sto.now, sto.cnt
     try:
         assets = now.sim.assCur
         cntAll = len(assets)
-        msg = f"[sim] set Resloved Assets( {cntAll} ) Success!"
+        msg = f"[sim] set Resolved Assets( {cntAll} ) Success!"
 
         if not assets or cnt == 0: raise RuntimeError("Current Assets not found")
-        lg.info(f"[sim:allReslove] reslove assets[{cntAll}] ")
+        lg.info(f"[sim:allResolve] resolve assets[{cntAll}] ")
 
-        db.pics.setResloveBy(assets)
+        db.pics.setResolveBy(assets)
 
         now.sim.clearAll()
         sto.ste.clear()
@@ -1210,7 +1210,7 @@ def sim_AllReslove(doReport: IFnProg, sto: models.ITaskStore):
 
         return sto, msg
     except Exception as e:
-        msg = f"[sim] Resloved All failed: {str(e)}"
+        msg = f"[sim] Resolved All failed: {str(e)}"
         nfy.error(msg)
         lg.error(traceback.format_exc())
         now.sim.clearAll()
@@ -1263,7 +1263,7 @@ def sim_AllDelete(doReport: IFnProg, sto: models.ITaskStore):
 mapFns[ks.cmd.sim.fnd] = sim_FindSimilar
 mapFns[ks.cmd.sim.clear] = sim_ClearSims
 mapFns[ks.cmd.sim.reset] = sim_ClearSims
-mapFns[ks.cmd.sim.selOk] = sim_SelectedReslove
+mapFns[ks.cmd.sim.selOk] = sim_SelectedResolve
 mapFns[ks.cmd.sim.selRm] = sim_SelectedDelete
-mapFns[ks.cmd.sim.allOk] = sim_AllReslove
+mapFns[ks.cmd.sim.allOk] = sim_AllResolve
 mapFns[ks.cmd.sim.allRm] = sim_AllDelete

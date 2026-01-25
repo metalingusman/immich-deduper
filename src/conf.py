@@ -144,9 +144,9 @@ class cmds:
         fnd = co.tit('sim_find', desc='Find Similar vectors')
         clear = co.tit('sim_clear', desc='Clear Similar results but keep simOk')
         reset = co.tit('sim_clearAll', desc='Clear all similar results')
-        selOk = co.tit('sim_selOk', desc='Reslove selected assets')
+        selOk = co.tit('sim_selOk', desc='Resolve selected assets')
         selRm = co.tit('sim_selRm', desc='Delete selected assets')
-        allOk = co.tit('sim_allOk', desc='Reslove All assets')
+        allOk = co.tit('sim_allOk', desc='Resolve All assets')
         allRm = co.tit('sim_allRm', desc='Delete All assets')
     class view(co.to):
         assDel = co.tit('view_AssDel',desc='Delete asset')
@@ -289,8 +289,10 @@ class envs:
         lg.info(f"  PSQL_DB: {envs.psqlDb}")
         lg.info(f"  PSQL_USER: {envs.psqlUser}")
         lg.info(f"  PSQL_PASS: {maskSensitive(envs.psqlPass)}")
-        lg.info(f"  IMMICH_PATH: {envs.immichPath}")
-        lg.info(f"  IMMICH_PATH_HOST: {envs.immichPathHost}")
+        if envs.isDock:
+            lg.info(f"  IMMICH_PATH: {envs.immichPathHost} → {envs.immichPath}")
+        else:
+            lg.info(f"  IMMICH_PATH: {envs.immichPath}")
         lg.info(f"  IMMICH_THUMB: {envs.immichThumb}")
         lg.info(f"  QDRANT_URL: {envs.qdrantUrl}")
         lg.info(f"  DEDUP_PORT: {envs.ddupPort}")

@@ -41,7 +41,7 @@ def render():
         dto.photoQ = ks.db.thumbnail
 
     from conf import co
-    dto.thMin = co.vad.float(dto.thMin, 0.93, mi=0.50, mx=0.99)
+    dto.thMin = co.vad.float(dto.thMin, 0.93, mi=0.50, mx=1.0)
 
 
     mk(ks.sto.pgSim, models.PgSim())

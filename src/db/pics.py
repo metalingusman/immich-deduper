@@ -665,7 +665,7 @@ def deleteBy(assets: List[models.Asset]):
         raise mkErr("Failed to delete assets", e)
 
 
-def setResloveBy(assets: List[models.Asset]):
+def setResolveBy(assets: List[models.Asset]):
     try:
         with mkConn() as conn:
             c = conn.cursor()
