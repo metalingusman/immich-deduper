@@ -20,9 +20,11 @@ class k:
     selUsrId = "inp-grid-user-selector"
     selFilter = "inp-grid-filter"
     schKeyword = "inp-grid-search"
+    schPath = "inp-grid-path"
     cbxFav = "inp-favorites"
     cbxArc = "inp-archived"
     cbxLive = "inp-livePhoto"
+    cbxGridInfo = "inp-grid-info"
 
     btnExportIds = "view-btn-ExportIds"
 
@@ -75,18 +77,20 @@ def layout():
                 ]),
 
                 dbc.Row([
-
-
                     dbc.Col([
-                        dbc.Label("Search"),
+                        dbc.Label("Filename"),
                         dbc.Input(id=k.schKeyword, type="text", placeholder="Search by filename...", className="mb-2"),
                     ], width=4),
-
                     dbc.Col([
-                        dbc.Checkbox(id=k.cbxFav, label="Favorites", value=False, className="mt-2"),
+                        dbc.Label("Path Contains"),
+                        dbc.Input(id=k.schPath, type="text", placeholder="e.g. /store/user/folder", className="mb-2"),
+                    ], width=4),
+                    dbc.Col([
+                        dbc.Checkbox(id=k.cbxFav, label="Favorites", value=False, className="mt-4"),
                         dbc.Checkbox(id=k.cbxArc, label="Archived", value=False, className="mt-2"),
                         dbc.Checkbox(id=k.cbxLive, label="LivePhoto", value=False, className="mt-2"),
-                    ], width=8),
+                        dbc.Checkbox(id=k.cbxGridInfo, label="Show Grid Info", value=db.dto.showGridInfo, className="mt-2"),
+                    ], width=4),
                 ]),
 
                 dbc.Row([
@@ -158,13 +162,14 @@ def vw_Init(dta_init):
         inp(k.selFilter, "value"),
         inp(k.cbxFav, "value"),
         inp(k.schKeyword, "value"),
+        inp(k.schPath, "value"),
         inp(k.cbxArc, "value"),
         inp(k.cbxLive, "value"),
     ],
     ste(pager.id.store(k.pagerMain), "data"),
     prevent_initial_call=True
 )
-def vw_OnOptChg( usrId, opts, cbxFav, schKey, cbxArc, cbxLive, dta_pgr):
+def vw_OnOptChg( usrId, opts, cbxFav, schKey, schPath, cbxArc, cbxLive, dta_pgr):
     pgr = Pager.fromDic(dta_pgr)
 
     # Update total count based on filters
@@ -172,6 +177,7 @@ def vw_OnOptChg( usrId, opts, cbxFav, schKey, cbxArc, cbxLive, dta_pgr):
         usrId=usrId,
         opts=opts,
         search=schKey,
+        pathFilter=schPath,
         favOnly=cbxFav,
         arcOnly=cbxArc,
         liveOnly=cbxLive
@@ -196,14 +202,17 @@ def vw_OnOptChg( usrId, opts, cbxFav, schKey, cbxArc, cbxLive, dta_pgr):
         inp(k.selUsrId, "value"),
         inp(k.selFilter, "value"),
         inp(k.schKeyword, "value"),
+        inp(k.schPath, "value"),
         inp(k.cbxFav, "value"),
         inp(k.cbxArc, "value"),
         inp(k.cbxLive, "value"),
+        inp(k.cbxGridInfo, "value"),
         inp(ks.sto.cnt, "data"),
     ],
     prevent_initial_call="initial_duplicate"
 )
-def vw_Load(dta_pgr, usrId, filOpt, shKey, onlyFav, onlyArc, onlyLive, dta_cnt):
+def vw_Load(dta_pgr, usrId, filOpt, shKey, shPath, onlyFav, onlyArc, onlyLive, showGridInfo, dta_cnt):
+    db.dto.showGridInfo = showGridInfo
     if not dta_pgr: return noUpd
 
     cnt = models.Cnt.fromDic(dta_cnt)
@@ -212,7 +221,7 @@ def vw_Load(dta_pgr, usrId, filOpt, shKey, onlyFav, onlyArc, onlyLive, dta_cnt):
     if cnt.ass <= 0:
         return dbc.Alert("No photos available", color="secondary", className="text-center")
 
-    photos = db.pics.getFiltered(usrId, filOpt, shKey, onlyFav, onlyArc, onlyLive, pgr.idx, pgr.size)
+    photos = db.pics.getFiltered(usrId, filOpt, shKey, shPath, onlyFav, onlyArc, onlyLive, pgr.idx, pgr.size)
 
     if photos and len(photos) > 0:
         lg.info(f"[vg:load] Loaded {len(photos)} photos for page {pgr.idx}")

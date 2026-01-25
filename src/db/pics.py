@@ -283,7 +283,7 @@ def getAllNonVector() -> list[models.Asset]:
 #------------------------------------------------------------------------
 # paged
 #------------------------------------------------------------------------
-def countFiltered(usrId="", opts="all", search="", favOnly=False, arcOnly=False, liveOnly=False):
+def countFiltered(usrId="", opts="all", search="", pathFilter="", favOnly=False, arcOnly=False, liveOnly=False):
     try:
         cds = []
         pms = []
@@ -310,6 +310,10 @@ def countFiltered(usrId="", opts="all", search="", favOnly=False, arcOnly=False,
             cds.append("originalFileName LIKE ?")
             pms.append(f"%{search}%")
 
+        if pathFilter and len(pathFilter.strip()) > 0:
+            cds.append("originalPath LIKE ?")
+            pms.append(f"%{pathFilter}%")
+
         query = "Select Count(*) From assets"
         if cds: query += " WHERE " + " AND ".join(cds)
 
@@ -322,7 +326,7 @@ def countFiltered(usrId="", opts="all", search="", favOnly=False, arcOnly=False,
         return 0
 
 
-def getFiltered( usrId="", opts="all", search="", onlyFav=False, onlyArc=False, onlyLive=False, page=1, pageSize=24) -> list[models.Asset]:
+def getFiltered( usrId="", opts="all", search="", pathFilter="", onlyFav=False, onlyArc=False, onlyLive=False, page=1, pageSize=24) -> list[models.Asset]:
     try:
         cds = []
         pms = []
@@ -348,6 +352,10 @@ def getFiltered( usrId="", opts="all", search="", onlyFav=False, onlyArc=False, 
         if search and len(search.strip()) > 0:
             cds.append("originalFileName LIKE ?")
             pms.append(f"%{search}%")
+
+        if pathFilter and len(pathFilter.strip()) > 0:
+            cds.append("originalPath LIKE ?")
+            pms.append(f"%{pathFilter}%")
 
         query = "Select * From assets"
         if cds:
@@ -405,7 +413,7 @@ def saveBy(asset: dict, c: Cursor) -> int:  #, onExist:Callable[[models.Asset],N
             except Exception as e:
                 raise mkErr("[pics.save] Error converting EXIF to JSON", e)
 
-        c.execute("Select originalPath, pathThumbnail, pathPreview, pathVdo, jsonExif, isFavorite, isArchived From assets Where id = ?", (str(assId),))
+        c.execute("Select originalPath, pathThumbnail, pathPreview, pathVdo, jsonExif, isFavorite, isArchived, libId From assets Where id = ?", (str(assId),))
         row = c.fetchone()
 
         if row is None:
@@ -447,6 +455,7 @@ def saveBy(asset: dict, c: Cursor) -> int:  #, onExist:Callable[[models.Asset],N
         if row['jsonExif'] != jsonExif: needUpdate = True
         if row['isFavorite'] != asset.get('isFavorite'): needUpdate = True
         if row['isArchived'] != (1 if asset.get('visibility') == 'archive' else 0): needUpdate = True
+        if row['libId'] != (str(asset.get('libraryId')) if asset.get('libraryId') else None): needUpdate = True
 
         if needUpdate:
             c.execute('''

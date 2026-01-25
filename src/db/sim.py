@@ -227,6 +227,13 @@ def findGroupBy(asset: models.Asset, doReport: IFnProg, grpId: int, fromUrl=Fals
         result.assets = assets
     else: result.assets = db.pics.getSimAssets(asset.autoId, db.dto.rtree)
 
+    if db.dto.pathFilter and result.assets:
+        hasMatch = any(db.dto.pathFilter in (a.originalPath or '') for a in result.assets)
+        if not hasMatch:
+            lg.info(f"[sim:fnd] Group #{asset.autoId} filtered out by pathFilter '{db.dto.pathFilter}'")
+            db.pics.setSimInfos(asset.autoId, bseInfos, isOk=1)
+            result.assets = []
+
     return result
 
 

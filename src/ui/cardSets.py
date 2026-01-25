@@ -18,6 +18,7 @@ class k:
     showGridInfo = "showGridInfo"
     simRtree = "simRtree"
     simMaxItems = "simMaxItems"
+    pathFilter = "pathFilter"
 
     exclEnable = "exclEnable"
     exclFndLess = "exclFndLess"
@@ -343,6 +344,18 @@ def renderCard():
             ], className="irow"),
 
             htm.Div([
+                htm.Label("Path Filter", className="txt-sm"),
+                htm.Div([
+                    htm.Label("Contains: "),
+                    dbc.Input(id=k.id(k.pathFilter), maxlength=200, placeholder='e.g. /store/user/folder', value=db.dto.pathFilter, className="txt-sm", style={"maxWidth": "300px"})
+                ], className="icbxs"),
+                htm.Ul([
+                    htm.Li("Only show groups with at least one asset matching this path pattern"),
+                    htm.Li("Groups without matching paths are auto-resolved. Use Reset Records to search again")
+                ])
+            ], className="irow"),
+
+            htm.Div([
                 htm.Label([
                     "Exclude Settings",
                     htm.Span("", className="txt-smx text-muted ms-3")
@@ -403,6 +416,7 @@ def renderCard():
     inp(k.id(k.showGridInfo), "value"),
     inp(k.id(k.simRtree), "value"),
     inp(k.id(k.simMaxItems), "value"),
+    inp(k.id(k.pathFilter), "value"),
     inp(k.id(k.muodEnable), "value"),
     inp(k.id(k.muodEqDate), "value"),
     inp(k.id(k.muodEqWidth), "value"),
@@ -412,7 +426,7 @@ def renderCard():
     ste(ks.sto.now, "data"),
     prevent_initial_call=True
 )
-def settings_OnUpd(th, auNxt, shGdInfo, rtree,  maxItems, muodEnable, muodDate, muodWidth, muodHeight, muodSize, maxGroups, dta_now):
+def settings_OnUpd(th, auNxt, shGdInfo, rtree,  maxItems, pathFilter, muodEnable, muodDate, muodWidth, muodHeight, muodSize, maxGroups, dta_now):
     retNow = noUpd
 
     now = models.Now.fromDic(dta_now)
@@ -421,6 +435,7 @@ def settings_OnUpd(th, auNxt, shGdInfo, rtree,  maxItems, muodEnable, muodDate, 
 
     db.dto.autoNext = auNxt
     db.dto.rtreeMax = maxItems
+    db.dto.pathFilter = pathFilter or ''
 
     db.dto.muod = muodEnable
     db.dto.muod_EqDt = muodDate

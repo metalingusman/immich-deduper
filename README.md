@@ -137,6 +137,11 @@ When deleting duplicates, Metadata Merge can transfer metadata from deleted phot
 
 ### Search Configuration
 
+- `Path Filter`
+  - Only show groups where at least one asset's path contains the filter pattern
+  - Useful for focusing on duplicates within a specific folder or external library
+  - Groups not matching the filter are auto-resolved. Use `Reset Records` to search them again
+
 - `Exclude Settings`
   - **Similar Less**: Auto-resolve groups with fewer than N similar photos and continue search
     - Example: Setting "< 2" means skip groups with 1 or 0 similar photos (requires at least 3 total photos)
