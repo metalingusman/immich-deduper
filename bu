@@ -1,210 +1,289 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
-set -e
+import os
+import sys
+import re
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+from datetime import datetime
 
-IMAGE_NAME="razgrizhsu/immich-deduper"
+IMAGE_NAME = "razgrizhsu/immich-deduper"
+BUILDER_NAME = "budx"
 
-SCRIPT_DIR="$(dirname "$0")"
-if [ ! -f "$SCRIPT_DIR/pyproject.toml" ]; then
-  echo "Error: pyproject.toml not found in $SCRIPT_DIR"
-  exit 1
-fi
-VERSION=$(grep '^version = ' "$SCRIPT_DIR/pyproject.toml" | sed 's/version = "\(.*\)"/\1/')
-if [ -z "$VERSION" ]; then
-  echo "Warning: Could not read version from pyproject.toml, using 'latest'"
-  VERSION="latest"
-fi
+def err(msg):
+	print(f"Error: {msg}", file=sys.stderr)
+	sys.exit(1)
 
-echo "Updating version in src/conf.py to ${VERSION}..."
-if [ -f "$SCRIPT_DIR/src/conf.py" ]; then
-  sed -i.bak "s/version='[^']*'/version='${VERSION}'/" "$SCRIPT_DIR/src/conf.py"
+def run(cmd, quiet=True):
+	result = subprocess.run(
+		cmd,
+		shell=isinstance(cmd, str),
+		capture_output=quiet,
+		text=True
+	)
+	if result.returncode != 0:
+		if quiet and result.stderr: print(result.stderr, file=sys.stderr)
+		return None
+	return result.stdout.strip() if quiet else ""
 
-  echo "Checking Python syntax and version reading..."
-  cd "$SCRIPT_DIR"
-  python3 -c "
+def showHelp():
+	print("""Usage: ./bu [options]
+
+Options:
+  -h, --help    Show this help
+  -up           Push images to Docker Hub
+  -gpu          Build only CUDA version (can combine with -up)
+  -pub          Publish release to GitHub
+  -tag TAG      Use custom tag instead of version from pyproject.toml
+
+Examples:
+  ./bu              Build locally
+  ./bu -up          Build and push to Docker Hub
+  ./bu -up -gpu     Build and push CUDA only
+  ./bu -pub         Publish GitHub release (no build)
+  ./bu -up -pub     Build, push, and publish
+""")
+	sys.exit(0)
+
+def readVer(scriptDir):
+	toml = scriptDir / "pyproject.toml"
+	if not toml.exists(): err(f"pyproject.toml not found in {scriptDir}")
+
+	for line in toml.read_text().splitlines():
+		m = re.match(r'^version = "(.+)"', line)
+		if m: return m.group(1)
+
+	print("Warning: Could not read version from pyproject.toml, using 'latest'")
+	return "latest"
+
+def updateConfVer(scriptDir, ver):
+	confPy = scriptDir / "src" / "conf.py"
+	if not confPy.exists():
+		print("Warning: src/conf.py not found, skipping version update")
+		return
+
+	print(f"Updating version in src/conf.py to {ver}...")
+	orig = confPy.read_text()
+	updated = re.sub(r"version='[^']*'", f"version='{ver}'", orig)
+	confPy.write_text(updated)
+
+	result = subprocess.run(
+		["python3", "-c", f"""
 import sys, os
 sys.path.insert(0, './src')
-expected_version = os.environ.get('EXPECTED_VERSION', '${VERSION}')
 try:
     from conf import envs
-    print('✓ conf.py syntax check passed')
-    print(f'✓ Version read from conf.py: {envs.version}')
-    if envs.version == expected_version:
-        print('✓ Version update successful')
-    else:
-        print('✗ Version mismatch in conf.py')
+    print('  conf.py syntax check passed')
+    print(f'  Version read from conf.py: {{envs.version}}')
+    if envs.version != '{ver}':
+        print('  Version mismatch in conf.py')
         sys.exit(1)
+    print('  Version update successful')
 except Exception as e:
-    print(f'✗ Error checking conf.py: {str(e)}')
+    print(f'  Error checking conf.py: {{str(e)}}')
     sys.exit(1)
-" EXPECTED_VERSION="${VERSION}"
+"""],
+		cwd=str(scriptDir),
+		text=True
+	)
 
-  if [ $? -ne 0 ]; then
-    echo "Error: Python syntax check or version read failed, restoring backup"
-    mv "$SCRIPT_DIR/src/conf.py.bak" "$SCRIPT_DIR/src/conf.py"
-    exit 1
-  else
-    rm -f "$SCRIPT_DIR/src/conf.py.bak"
-    echo "✓ Version update completed successfully"
-  fi
-else
-  echo "Warning: src/conf.py not found, skipping version update"
-fi
-TAG="${VERSION}"
-UPLOAD=false
-GPU_ONLY=false
+	if result.returncode != 0:
+		confPy.write_text(orig)
+		err("Python syntax check or version read failed, restored backup")
 
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    -up)
-      UPLOAD=true
-      shift
-      ;;
-    -gpu)
-      GPU_ONLY=true
-      shift
-      ;;
-    -tag)
-      TAG="$2"
-      shift 2
-      ;;
-    *)
-      echo "Unknown option: $1"
-      echo "Usage: $0 [-up] [-gpu] [-tag TAG]"
-      echo "  -up: Push images to Docker Hub"
-      echo "  -gpu:    Build only CUDA version (can combine with -up)"
-      echo "  -tag:    Use custom tag instead of version from pyproject.toml"
-      exit 1
-      ;;
-  esac
-done
+def ensureBuilder():
+	check = subprocess.run(
+		["docker", "buildx", "inspect", BUILDER_NAME],
+		capture_output=True
+	)
+	if check.returncode != 0:
+		print(f"Docker Buildx builder '{BUILDER_NAME}' not found. Creating it...")
+		run(f"docker buildx create --name {BUILDER_NAME} --driver docker-container --use")
+	else:
+		print(f"Using Docker Buildx builder '{BUILDER_NAME}'.")
+		run(f"docker buildx use {BUILDER_NAME}")
 
-echo "Starting Docker image build process..."
+def buildImg(tag, device, tagSuffix, platforms, push=False):
+	fullTag = f"{IMAGE_NAME}:{tag}{tagSuffix}"
+	print(f"Building {device} image: {fullTag}")
 
-cd "$(dirname "$0")"
+	buildArgs = [
+		"--build-arg", "DEDUP_PORT=8086",
+		"--build-arg", f"DEVICE={device}",
+		"."
+	]
 
-if [ ! -f "requirements.txt" ]; then
-  echo "Error: requirements.txt not found"
-  exit 1
-fi
+	cmd = [
+		"docker", "buildx", "build",
+		"--platform", platforms,
+		"-t", fullTag,
+	]
 
-if [ ! -f "requirements-cuda.txt" ]; then
-  echo "Error: requirements-cuda.txt not found"
-  exit 1
-fi
+	if push:
+		latestTag = f"{IMAGE_NAME}:latest{tagSuffix}"
+		cmd += ["-t", latestTag, "--push"]
+	else: cmd += ["--load"]
 
-if [ ! -f "Dockerfile" ]; then
-  echo "Error: Dockerfile not found"
-  exit 1
-fi
+	cmd += buildArgs
 
-if [ ! -d "src" ]; then
-  echo "Error: src directory not found"
-  exit 1
-fi
+	result = subprocess.run(cmd)
+	if result.returncode != 0: err(f"Build failed for {fullTag}")
 
-BUILDER_NAME="budx"
-if ! docker buildx inspect "$BUILDER_NAME" &>/dev/null; then
-  echo "Docker Buildx builder '$BUILDER_NAME' not found. Creating it..."
-  docker buildx create --name "$BUILDER_NAME" --driver docker-container --use
-else
-  echo "Using Docker Buildx builder '$BUILDER_NAME'."
-  docker buildx use "$BUILDER_NAME"
-fi
+def buildAll(tag, upload, gpuOnly):
+	ensureBuilder()
 
-# Build both CPU and CUDA versions
-build_image() {
-  local device=$1
-  local tag_suffix=$2
-  local platforms=$3
-  local load_flag=$4
+	if upload:
+		print("Building multi-platform Docker images and pushing to Docker Hub")
+		if gpuOnly:
+			print("Building CUDA version only")
+			buildImg(tag, "cuda", "-cuda", "linux/amd64", push=True)
+		else:
+			plat = "linux/amd64,linux/arm64/v8"
+			buildImg(tag, "cpu", "", plat, push=True)
+			buildImg(tag, "cuda", "-cuda", "linux/amd64", push=True)
+			print("Successfully built and pushed both CPU and CUDA versions.")
+	else:
+		print("Building Docker images for current host platform (not pushing).")
+		arch = run("uname -m") or "amd64"
+		curPlat = f"linux/{arch.replace('aarch64', 'arm64').replace('x86_64', 'amd64')}"
 
-  echo "Building ${device} image: ${IMAGE_NAME}:${TAG}${tag_suffix}"
+		if gpuOnly:
+			print("Building CUDA version only")
+			buildImg(tag, "cuda", "-cuda", "linux/amd64")
+		else:
+			buildImg(tag, "cpu", "", curPlat)
+			print("Building CUDA version for AMD64 platform")
+			buildImg(tag, "cuda", "-cuda", "linux/amd64")
+			print("Successfully built and loaded images for local testing.")
 
-  BUILD_ARGS=(
-    "--build-arg" "DEDUP_PORT=8086"
-    "--build-arg" "DEVICE=${device}"
-    "."
-  )
+def publish(tag, scriptDir):
+	print("Publishing release to GitHub...")
+	gitTag = f"v{tag}"
+	title = f"Release {tag}"
 
-  if [ "$load_flag" = "--load" ]; then
-    if [ -z "$tag_suffix" ]; then
-      # CPU version: only TAG for local builds
-      docker buildx build \
-        --platform "${platforms}" \
-        -t "${IMAGE_NAME}:${TAG}" \
-        "${BUILD_ARGS[@]}" \
-        --load
-    else
-      # CUDA version: TAG-cuda for local builds
-      docker buildx build \
-        --platform "${platforms}" \
-        -t "${IMAGE_NAME}:${TAG}${tag_suffix}" \
-        "${BUILD_ARGS[@]}" \
-        --load
-    fi
-  else
-    if [ -z "$tag_suffix" ]; then
-      # CPU version: TAG and latest
-      docker buildx build \
-        --platform "${platforms}" \
-        -t "${IMAGE_NAME}:${TAG}" \
-        -t "${IMAGE_NAME}:latest" \
-        "${BUILD_ARGS[@]}" \
-        --push
-    else
-      # CUDA version: TAG-cuda and latest-cuda
-      docker buildx build \
-        --platform "${platforms}" \
-        -t "${IMAGE_NAME}:${TAG}${tag_suffix}" \
-        -t "${IMAGE_NAME}:latest${tag_suffix}" \
-        "${BUILD_ARGS[@]}" \
-        --push
-    fi
-  fi
-}
+	latestTag = run("git describe --tags --abbrev=0")
+	rng = f"{latestTag}..HEAD" if latestTag else "HEAD~10..HEAD"
 
-if [ "$UPLOAD" = true ]; then
-  echo "Building multi-platform Docker images and pushing to Docker Hub"
+	rawCommits = run(f"git log --oneline --no-merges {rng}")
+	kept = ("break", "fix", "feat", "mod", "upd")
+	if not rawCommits:
+		changelog = "- No new commits"
+	else:
+		msg = lambda l: l.split(" ", 1)[-1]
+		breaking = [l for l in rawCommits.splitlines() if msg(l).startswith("break")]
+		others = [l for l in rawCommits.splitlines() if any(msg(l).startswith(p) for p in kept[1:])]
+		parts = []
+		if breaking:
+			parts.append("**Breaking Changes**")
+			parts += [f"- {l}" for l in breaking]
+			if others: parts.append("")
+		parts += [f"- {l}" for l in others]
+		changelog = "\n".join(parts) if parts else "- No notable changes"
 
-  if [ "$GPU_ONLY" = true ]; then
-    echo "Building CUDA version only"
-    # Build CUDA version (AMD64 only for CUDA)
-    build_image "cuda" "-cuda" "linux/amd64" ""
-    echo "Successfully built and pushed CUDA version."
-  else
-    PLATFORMS="linux/amd64,linux/arm64/v8"
+	notes = f"""Release {tag}
 
-    # Build CPU version
-    build_image "cpu" "" "${PLATFORMS}" ""
+## Changes
+{changelog}"""
 
-    # Build CUDA version (AMD64 only for CUDA)
-    build_image "cuda" "-cuda" "linux/amd64" ""
+	# prepare assets first, before any irreversible operations
+	assetDir = Path(tempfile.mkdtemp())
+	dockerDir = scriptDir / "docker"
 
-    echo "Successfully built and pushed both CPU and CUDA versions for multiple platforms."
-  fi
+	prefixMap = {
+		"same-host": "(same-host)",
+		"different-host": "(diff-host)",
+	}
 
-else
-  echo "Building Docker images for current host platform and loading to local Docker daemon (not pushing)."
-  echo "To build and push multi-platform images, run with -up option."
+	for hostDir, prefix in prefixMap.items():
+		srcDir = dockerDir / hostDir
+		if not srcDir.exists(): continue
+		for f in srcDir.iterdir(): shutil.copy2(f, assetDir / f"{prefix} {f.name}")
 
-  CURRENT_PLATFORM="linux/$(uname -m | sed 's/aarch64/arm64/' | sed 's/x86_64/amd64/')"
+	assets = [str(f) for f in assetDir.iterdir()]
+	if not assets:
+		shutil.rmtree(assetDir)
+		err("No assets found in docker/ directories")
 
-  if [ "$GPU_ONLY" = true ]; then
-    echo "Building CUDA version only"
-    # Always build for AMD64 since CUDA requires it, regardless of current platform
-    build_image "cuda" "-cuda" "linux/amd64" "--load"
-    echo "Successfully built and loaded CUDA image for local testing."
-  else
-    # Build CPU version
-    build_image "cpu" "" "${CURRENT_PLATFORM}" "--load"
+	# delete existing tag/release
+	check = subprocess.run(["git", "rev-parse", gitTag], capture_output=True, text=True)
+	if check.returncode == 0:
+		print(f"Tag {gitTag} exists, deleting old version...")
+		subprocess.run(["git", "tag", "-d", gitTag], capture_output=True)
+		print("  Deleted local tag")
+		subprocess.run(["git", "push", "origin", "--delete", gitTag], capture_output=True)
+		print("  Deleted remote tag")
+		subprocess.run(["gh", "release", "delete", gitTag, "--yes"], capture_output=True)
+		print("  Deleted GitHub release")
 
-    # Build CUDA version for AMD64 (using buildx cross-compilation if needed)
-    echo "Building CUDA version for AMD64 platform"
-    build_image "cuda" "-cuda" "linux/amd64" "--load"
+	run(f"git tag -a {gitTag} -m 'Release {tag}'")
+	print(f"  Tag {gitTag} created")
 
-    echo "Successfully built and loaded images for local testing."
-  fi
-fi
+	run(f"git push origin {gitTag}")
+	print(f"  Tag pushed")
 
-echo "Build process completed."
+	result = subprocess.run(
+		["gh", "release", "create", gitTag, "--title", title, "--notes", notes] + assets
+	)
+
+	shutil.rmtree(assetDir)
+
+	if result.returncode != 0: err("Publish failed")
+
+	print(f"Published {gitTag} to GitHub")
+
+def main():
+	args = sys.argv[1:]
+
+	if "-h" in args or "--help" in args: showHelp()
+
+	upload = False
+	gpuOnly = False
+	pubRelease = False
+	customTag = ""
+
+	i = 0
+	while i < len(args):
+		arg = args[i]
+		if arg == "-up": upload = True
+		elif arg == "-gpu": gpuOnly = True
+		elif arg == "-pub": pubRelease = True
+		elif arg == "-tag":
+			if i + 1 >= len(args): err("-tag requires a value")
+			customTag = args[i + 1]
+			i += 1
+		else: err(f"Unknown option: {arg}\nRun with -h for help")
+		i += 1
+
+	scriptDir = Path(__file__).resolve().parent
+	os.chdir(scriptDir)
+
+	ver = readVer(scriptDir)
+	updateConfVer(scriptDir, ver)
+	tag = customTag or ver
+
+	if pubRelease:
+		if not shutil.which("gh"): err("gh not found, please install GitHub CLI")
+		if run("gh auth status") is None: err("Not logged in to GitHub, run 'gh auth login'")
+
+	# -pub without -up: skip build
+	if not (pubRelease and not upload):
+		print("Starting Docker image build process...")
+
+		reqFiles = ["requirements.txt", "requirements-cuda.txt", "Dockerfile"]
+		for f in reqFiles:
+			if not (scriptDir / f).exists(): err(f"{f} not found")
+		if not (scriptDir / "src").is_dir(): err("src directory not found")
+
+		buildAll(tag, upload, gpuOnly)
+
+	if pubRelease: publish(tag, scriptDir)
+
+	print("Build process completed.")
+
+if __name__ == "__main__":
+	try: main()
+	except KeyboardInterrupt:
+		print("\nInterrupted")
+		sys.exit(1)
