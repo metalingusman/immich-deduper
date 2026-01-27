@@ -110,6 +110,35 @@ def regBy(app):
             return send_file(pathNoImg, mimetype='image/png')
 
     #----------------------------------------------------------------
+    # serve for Image by asset UUID
+    #----------------------------------------------------------------
+    @app.server.route('/api/img/id/<assId>')
+    def doGetImgByUUID(assId):
+        try:
+            photoQ = request.args.get('q', ks.db.thumbnail)
+            cache_key = f"uuid_{assId}_{photoQ}"
+
+            def query_image():
+                with db.pics.mkConn() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT pathThumbnail, pathPreview FROM assets WHERE id = ?", [assId])
+                    row = cursor.fetchone()
+
+                    if row:
+                        if photoQ == ks.db.preview: return row[1]
+                        return row[0]
+                    return None
+
+            result = getCache(cache_key, query_image, 'image/jpeg')
+            if result: return result
+
+            return send_file(pathNoImg, mimetype='image/png')
+
+        except Exception as e:
+            lg.error(f"Error serving image by UUID: {str(e)}")
+            return send_file(pathNoImg, mimetype='image/png')
+
+    #----------------------------------------------------------------
     # serve for LivePhoto Video
     #----------------------------------------------------------------
     @app.server.route('/api/livephoto/<aid>')

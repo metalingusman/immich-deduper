@@ -722,7 +722,30 @@ def fetchExInfos(assetIds: List[str]) -> Dict[str, models.AssetExInfo]:
                             rst[assetId].state = row['state']
                             rst[assetId].country = row['country']
 
-                # Fetch albums in chunks
+                # stack
+                stkMap = {}
+                for i in range(0, len(assetIds), szChunk):
+                    chunk = assetIds[i:i + szChunk]
+                    stkQ = Q(f'Select id, "stackId" From {sch.asset} Where id = ANY(%s) And "stackId" Is Not Null')
+                    cursor.execute(stkQ, (chunk,))
+                    for row in cursor.fetchall(): stkMap[str(row['id']).strip()] = str(row['stackId'])
+
+                if stkMap:
+                    uniqStkIds = list(set(stkMap.values()))
+                    stkMembers = {}
+                    for i in range(0, len(uniqStkIds), szChunk):
+                        chunk = uniqStkIds[i:i + szChunk]
+                        memQ = Q(f'''Select id, "stackId" From {sch.asset} Where "stackId" = ANY(%s) And status = 'active' ''')
+                        cursor.execute(memQ, (chunk,))
+                        for row in cursor.fetchall():
+                            sid = str(row['stackId'])
+                            if sid not in stkMembers: stkMembers[sid] = []
+                            stkMembers[sid].append(str(row['id']))
+
+                    for assetId, stkId in stkMap.items():
+                        if assetId in rst and stkId in stkMembers: rst[assetId].stackAssets = stkMembers[stkId]
+
+                # albums
                 for i in range(0, len(assetIds), szChunk):
                     chunk = assetIds[i:i + szChunk]
                     albQ = Q(f"""
@@ -743,7 +766,7 @@ def fetchExInfos(assetIds: List[str]) -> Dict[str, models.AssetExInfo]:
                             albData = {k: v for k, v in row.items() if k != sch.albumAssetAssetId}
                             rst[assetId].albs.append(models.Album.fromDic(albData))
 
-                # Fetch tags in chunks
+                # tags
                 for i in range(0, len(assetIds), szChunk):
                     chunk = assetIds[i:i + szChunk]
                     tagQ = Q(f"""
@@ -761,7 +784,7 @@ def fetchExInfos(assetIds: List[str]) -> Dict[str, models.AssetExInfo]:
                             tagData = {k: v for k, v in row.items() if k != sch.tagAssetAssetId}
                             rst[assetId].tags.append(models.Tags.fromDic(tagData))
 
-                # Fetch faces in chunks
+                # faces
                 for i in range(0, len(assetIds), szChunk):
                     chunk = assetIds[i:i + szChunk]
                     facSql = Q(f"""

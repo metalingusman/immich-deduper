@@ -118,6 +118,7 @@ class AssetExInfo(BaseDictModel):
     albs: List[Album] = field(default_factory=list)
     facs: List[AssetFace] = field(default_factory=list)
     tags: List[Tags] = field(default_factory=list)
+    stackAssets: List[str] = field(default_factory=list)
     visibility: str = "timeline"
     rating: int = 0
     description: Optional[str] = None

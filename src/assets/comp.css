@@ -1,0 +1,18 @@
+/*======================== Modal ========================*/
+.modal .modal-header { padding: 8px; }
+
+.modal .modal-header span:first-child { margin: 0px auto auto 10px; color: #bbbbbb; }
+
+.modal .modal-header button { font-size: 13px; }
+
+.modal .btn-close { color: red; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23fff'%3e%3cpath d='M1.707 1.707a2 2 0 0 1 2.828 0L8 5.172l3.465-3.465a2 2 0 1 1 2.828 2.828L10.828 8l3.465 3.465a2 2 0 0 1-2.828 2.828L8 10.828l-3.465 3.465a2 2 0 0 1-2.828-2.828L5.172 8 1.707 4.535a2 2 0 0 1 0-2.828'/%3e%3c/svg%3e"); border: 1px solid #bbbbbb; margin-right: 10px; }
+
+.modal-content { border-radius: 12px; box-shadow: 0 0 12px 5px rgba(255, 255, 255, 0.3); background-color: #3a3a3a; border: 1px solid #5db1ff99; }
+
+.modal-header { border-bottom: 1px solid #333333; background-color: #212121; color: #e0e0e0; border-top-left-radius: 12px; border-top-right-radius: 12px; font-size: 15px; }
+
+.modal-body { color: #e0e0e0; margin: 10px 20px 20px 20px; text-align: center; font-size: 17px; }
+
+.modal-footer { border-top: 1px solid #333333; background-color: #212121; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+
+.modal-dialog.img-pop .modal-body { margin: auto; text-align: center; padding: 5px 0px; }

@@ -161,12 +161,12 @@ def mk(ass: models.Asset, modSim=True):
 
                     htm.Span('✅ resolved', className='tag') if ass.simOk else None,
                     htm.Span('❤️', className='tag') if ass.isFavorite else None,
-                    htm.Span("exif", className='tag blue', id={'type':'exif-badge', 'index': ass.id}) if ass.jsonExif else None,
-                    htm.Span("external", className='tag yellow') if ass.libId else None,
-                    #
+                    htm.Span(f'⭐{ex.rating}', className='tag yellow') if ex and ex.rating and ex.rating > 0 else None,
                     htm.Span(ex.visibility, className='tag info') if ex and ex.visibility and ex.visibility != 'timeline' else None,
 
-                    htm.Span(f'⭐{ex.rating}', className='tag yellow') if ex and ex.rating and ex.rating > 0 else None,
+                    htm.Span("exif", className='tag blue', id={'type':'exif-badge', 'index': ass.id}) if ass.jsonExif else None,
+                    htm.Span("external", className='tag yellow') if ass.libId else None,
+
                     htm.Span('desc', className='tag second', id={'type':'desc-badge', 'index': ass.id}) if ex and ex.description else None,
                     dbc.Popover(
                         dbc.PopoverBody(
@@ -177,6 +177,7 @@ def mk(ass: models.Asset, modSim=True):
                         trigger="hover focus",
                         placement="auto",
                     ) if ex and ex.description else None,
+
                     htm.Span('location', className='tag green', id={'type':'loc-badge', 'index': ass.id}) if ex and ex.latitude is not None and ex.longitude is not None else None,
                     dbc.Popover(
                         dbc.PopoverBody(
@@ -193,6 +194,28 @@ def mk(ass: models.Asset, modSim=True):
                         trigger="hover focus",
                         placement="auto",
                     ) if ex and ex.latitude is not None and ex.longitude is not None else None,
+
+
+                    htm.Span([
+                        htm.Span(className='ico stack'),
+                        f'{len(ex.stackAssets)}',
+                    ], className='tag second', id={'type':'stack-badge', 'index': ass.id}) if ex and ex.stackAssets else None,
+                    dbc.Popover(
+                        dbc.PopoverBody(
+                            htm.Div([
+                                htm.Img(
+                                    src=f"/api/img/id/{mid}",
+                                    style={"width": "64px", "height": "64px", "objectFit": "cover", "borderRadius": "4px"}
+                                ) for mid in ex.stackAssets
+                            ], style={"display": "flex", "flexWrap": "wrap", "gap": "4px", "maxWidth": "280px"}),
+                            style={"padding": "8px"}
+                        ),
+                        target={'type':'stack-badge', 'index': ass.id},
+                        trigger="hover focus",
+                        placement="auto",
+                    ) if ex and ex.stackAssets else None,
+
+
                     #
                     # htm.Span([
                     #     htm.I(className='bi bi-bookmark-check-fill'),

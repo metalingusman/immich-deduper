@@ -67,12 +67,6 @@ _SCHEMAS = {
         ownerId     TEXT,
         importPaths TEXT Default '[]'
     ''',
-    'users': '''
-        id     TEXT Primary Key,
-        name   TEXT,
-        email  TEXT,
-        apiKey TEXT
-    ''',
 }
 
 # auto-key columns: autoId (AUTOINCREMENT) and PRIMARY KEY columns

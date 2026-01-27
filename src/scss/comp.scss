@@ -1,0 +1,67 @@
+
+/*======================== Modal ========================*/
+.modal {
+	.modal-header {
+		padding: 8px;
+
+		span:first-child {
+			margin: 0px auto auto 10px;
+			color: #bbbbbb;
+		}
+
+		button {
+			font-size: 13px;
+		}
+	}
+
+	$rad: 12px;
+
+	.btn-close {
+		color: red;
+		background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23fff'%3e%3cpath d='M1.707 1.707a2 2 0 0 1 2.828 0L8 5.172l3.465-3.465a2 2 0 1 1 2.828 2.828L10.828 8l3.465 3.465a2 2 0 0 1-2.828 2.828L8 10.828l-3.465 3.465a2 2 0 0 1-2.828-2.828L5.172 8 1.707 4.535a2 2 0 0 1 0-2.828'/%3e%3c/svg%3e");
+		border: 1px solid #bbbbbb;
+		margin-right: 10px;
+	}
+
+	//<path d='M1.707 1.707a2 2 0 0 1 2.828 0L8 5.172l3.465-3.465a2 2 0 1 1 2.828 2.828L10.828 8l3.465 3.465a2 2 0 0 1-2.828 2.828L8 10.828l-3.465 3.465a2 2 0 0 1-2.828-2.828L5.172 8 1.707 4.535a2 2 0 0 1 0-2.828'/>
+	//data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23fff'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414'/%3e%3c/svg%3e
+
+	&-content {
+		border-radius: $rad;
+		box-shadow: 0 0 12px 5px rgba(255, 255, 255, 0.3);
+		background-color: #3a3a3a;
+		border: 1px solid #5db1ff99;
+	}
+
+	&-header {
+		border-bottom: 1px solid #333333;
+		background-color: #212121;
+		color: #e0e0e0;
+		border-top-left-radius: $rad;
+		border-top-right-radius: $rad;
+		font-size: 15px;
+	}
+
+	&-body {
+		color: #e0e0e0;
+		margin: 10px 20px 20px 20px;
+		text-align: center;
+		font-size: 17px;
+	}
+
+	&-footer {
+		border-top: 1px solid #333333;
+		background-color: #212121;
+		border-bottom-left-radius: $rad;
+		border-bottom-right-radius: $rad;
+	}
+
+	&-dialog.img-pop {
+		.modal-body {
+			margin: auto;
+			text-align: center;
+			padding: 5px 0px;
+		}
+	}
+}
+
