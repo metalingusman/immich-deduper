@@ -838,4 +838,233 @@ class TestAutoDbField(unittest.TestCase):
         self.assertEqual(dto2.muod.sz, 5)
 
 
+    def test_castVal_type_mismatch_with_default(self):
+        from dto import cstv
+
+        # bool → int: 類型不匹配, 應用 default
+        self.assertEqual(cstv(int, False, 10), 10)
+        self.assertEqual(cstv(int, True, 10), 10)
+
+        # bool → float: 類型不匹配, 應用 default
+        self.assertEqual(cstv(float, False, 0.93), 0.93)
+        self.assertEqual(cstv(float, True, 0.93), 0.93)
+
+        # None → int/float: 應用 default
+        self.assertEqual(cstv(int, None, 10), 10)
+        self.assertEqual(cstv(float, None, 0.93), 0.93)
+
+        # str → int: 正常轉換, 不用 default
+        self.assertEqual(cstv(int, '5', 10), 5)
+        self.assertEqual(cstv(int, '0', 10), 0)
+
+        # str → float: 正常轉換
+        self.assertEqual(cstv(float, '0.5', 0.93), 0.5)
+
+        # int → int: 正常, 不用 default
+        self.assertEqual(cstv(int, 5, 10), 5)
+        self.assertEqual(cstv(int, 0, 10), 0)
+
+        # empty str → int/float: 應用 default
+        self.assertEqual(cstv(int, '', 10), 10)
+        self.assertEqual(cstv(float, '', 0.93), 0.93)
+
+        # 無 default 時, bool → int 仍轉為 int (不是 bool)
+        r = cstv(int, False)
+        self.assertIsInstance(r, int)
+        self.assertNotIsInstance(r, bool)
+
+        # bool → bool: 不受影響
+        self.assertEqual(cstv(bool, True), True)
+        self.assertEqual(cstv(bool, False), False)
+
+        # int → bool: 正常轉換
+        self.assertEqual(cstv(bool, 1), True)
+        self.assertEqual(cstv(bool, 0), False)
+
+    def test_muod_bool_in_int_field_uses_default(self):
+        """DB 存了 {"on": true, "sz": false}, sz 應 fallback 到 default 10"""
+        from dto import AutoDbField, Muod
+        import db.sets as sets
+        sets.init()
+
+        sets.save('test_muod_bad', '{"on": true, "sz": false}')
+
+        class Dto: muod = AutoDbField('test_muod_bad', Muod)
+
+        dto = Dto()
+        self.assertIsInstance(dto.muod.sz, int)
+        self.assertEqual(dto.muod.sz, 10)
+        self.assertEqual(dto.muod.on, True)
+
+    def test_muod_null_in_int_field_uses_default(self):
+        """DB 存了 {"on": true, "sz": null}, sz 應 fallback 到 default 10"""
+        from dto import AutoDbField, Muod
+        import db.sets as sets
+        sets.init()
+
+        sets.save('test_muod_null', '{"on": true, "sz": null}')
+
+        class Dto: muod = AutoDbField('test_muod_null', Muod)
+
+        dto = Dto()
+        self.assertIsInstance(dto.muod.sz, int)
+        self.assertEqual(dto.muod.sz, 10)
+
+    def test_castVal_all_cases(self):
+        from dto import cstv, Ausl
+        from dataclasses import fields as dc_fields
+
+        # verify fld.type actual values
+        for fld in dc_fields(Ausl):
+            if fld.name in ('on', 'skipLow', 'allLive'):
+                self.assertIs(fld.type, bool, f"{fld.name}: fld.type should be bool, got {fld.type!r}")
+            elif fld.name == 'usr':
+                self.assertIs(fld.type, str, f"{fld.name}: fld.type should be str, got {fld.type!r}")
+            else:
+                self.assertIs(fld.type, int, f"{fld.name}: fld.type should be int, got {fld.type!r}")
+
+        # int field + str val
+        self.assertIsInstance(cstv(int, '2'), int)
+        self.assertEqual(cstv(int, '2'), 2)
+
+        # int field + bool val (bool is subclass of int)
+        r = cstv(int, True)
+        self.assertIsInstance(r, int, f"cstv(int, True) = {r!r} type={type(r).__name__}")
+
+        # int field + int val
+        self.assertIsInstance(cstv(int, 2), int)
+        self.assertEqual(cstv(int, 2), 2)
+
+        # bool field + str val
+        self.assertIsInstance(cstv(bool, 'true'), bool)
+        self.assertEqual(cstv(bool, 'true'), True)
+        self.assertEqual(cstv(bool, '2'), False)
+
+        # bool field + int val (not str, skips bool branch)
+        r2 = cstv(bool, 1)
+        print(f"  cstv(bool, 1) = {r2!r} type={type(r2).__name__}")
+
+        # bool field + bool val
+        self.assertEqual(cstv(bool, True), True)
+
+
+    def test_get_exception_returns_dcproxy(self):
+        from dto import AutoDbField, Ausl, DcProxy
+        import db.sets as sets
+        sets.init()
+
+        sets.save('test_ausl_bad_json', 'NOT_VALID_JSON{{{')
+
+        class Dto: ausl = AutoDbField('test_ausl_bad_json', Ausl)
+
+        dto = Dto()
+        a = dto.ausl
+        self.assertIsInstance(a, DcProxy, f"exception path should return DcProxy, got {type(a).__name__}")
+
+        a.fav = '2' #type:ignore
+        self.assertIsInstance(a.fav, int, f"fav should be int, got {type(a.fav).__name__}={a.fav!r}")
+        self.assertTrue(a.fav > 0)
+
+
+    def test_set_dataclass_caches_dcproxy(self):
+        from dto import AutoDbField, Ausl, DcProxy
+        import db.sets as sets
+        sets.init()
+
+        sets.save('test_ausl_set_dc', '{"on": true, "skipLow": true, "allLive": false, "earlier": 2, "later": 0, "exRich": 1, "exPoor": 0, "ofsBig": 2, "ofsSml": 0, "dimBig": 2, "dimSml": 0, "namLon": 1, "namSht": 0, "typJpg": 0, "typPng": 0, "typHeic": 0, "fav": 0, "inAlb": 0, "usr": ""}')
+
+        class Dto: ausl = AutoDbField('test_ausl_set_dc', Ausl)
+
+        dto = Dto()
+        dto.ausl = Ausl(on=True, skipLow=False, allLive=False, earlier=1, later=0, exRich=0, exPoor=0, ofsBig=0, ofsSml=0, dimBig=0, dimSml=0, namLon=0, namSht=0, typJpg=0, typPng=0, typHeic=0, fav=0, inAlb=0, usr='') #type:ignore
+
+        a = dto.ausl
+        self.assertIsInstance(a, DcProxy, f"after __set__ with dataclass, should be DcProxy, got {type(a).__name__}")
+
+        a.fav = '3' #type:ignore
+        self.assertIsInstance(a.fav, int, f"fav should be int, got {type(a.fav).__name__}={a.fav!r}")
+        self.assertTrue(a.fav > 0)
+
+
+    def test_get_db_json_extra_keys(self):
+        from dto import AutoDbField, Ausl, DcProxy
+        import db.sets as sets
+        sets.init()
+
+        sets.save('test_ausl_extra', '{"on": true, "skipLow": false, "allLive": false, "earlier": 2, "later": 0, "exRich": 1, "exPoor": 0, "ofsBig": 2, "ofsSml": 0, "dimBig": 2, "dimSml": 0, "namLon": 1, "namSht": 0, "typJpg": 0, "typPng": 0, "typHeic": 0, "fav": 3, "inAlb": 0, "usr": "", "obsoleteField": 999, "removed": "abc"}')
+
+        class Dto: ausl = AutoDbField('test_ausl_extra', Ausl)
+
+        dto = Dto()
+        a = dto.ausl
+        self.assertIsInstance(a, DcProxy, f"should be DcProxy, got {type(a).__name__}")
+        self.assertEqual(a.fav, 3)
+        self.assertEqual(a.skipLow, False)
+
+
+    def test_get_db_json_missing_keys(self):
+        from dto import AutoDbField, Ausl, DcProxy
+        import db.sets as sets
+        sets.init()
+
+        sets.save('test_ausl_missing', '{"on": false, "skipLow": true}')
+
+        class Dto: ausl = AutoDbField('test_ausl_missing', Ausl)
+
+        dto = Dto()
+        a = dto.ausl
+        self.assertIsInstance(a, DcProxy, f"should be DcProxy, got {type(a).__name__}")
+        self.assertEqual(a.on, False)
+        self.assertEqual(a.skipLow, True)
+        self.assertEqual(a.fav, 0)
+        self.assertEqual(a.earlier, 2)
+        self.assertIsInstance(a.fav, int)
+
+
+    def test_get_db_json_extra_and_missing_keys(self):
+        from dto import AutoDbField, Ausl, DcProxy
+        import db.sets as sets
+        sets.init()
+
+        sets.save('test_ausl_both', '{"on": true, "fav": 4, "gone": true, "oldWeight": 5}')
+
+        class Dto: ausl = AutoDbField('test_ausl_both', Ausl)
+
+        dto = Dto()
+        a = dto.ausl
+        self.assertIsInstance(a, DcProxy, f"should be DcProxy, got {type(a).__name__}")
+        self.assertEqual(a.on, True)
+        self.assertEqual(a.fav, 4)
+        self.assertEqual(a.earlier, 2)
+        self.assertIsInstance(a.earlier, int)
+
+
+    def test_set_dcproxy_saves_valid_json(self):
+        from dto import AutoDbField, Ausl, DcProxy
+        import db.sets as sets
+        sets.init()
+
+        sets.save('test_ausl_proxy_set', '{"on": true, "skipLow": true, "allLive": false, "earlier": 2, "later": 0, "exRich": 1, "exPoor": 0, "ofsBig": 2, "ofsSml": 0, "dimBig": 2, "dimSml": 0, "namLon": 1, "namSht": 0, "typJpg": 0, "typPng": 0, "typHeic": 0, "fav": 3, "inAlb": 0, "usr": ""}')
+
+        class Dto: ausl = AutoDbField('test_ausl_proxy_set', Ausl)
+
+        dto = Dto()
+        proxy = dto.ausl
+        self.assertIsInstance(proxy, DcProxy)
+
+        dto.ausl = proxy #type:ignore
+
+        raw = sets.get('test_ausl_proxy_set')
+        import json
+        data = json.loads(raw)
+        self.assertIsInstance(data, dict, f"DB should have valid JSON, got {raw!r}")
+        self.assertEqual(data['fav'], 3)
+
+        dto2 = Dto()
+        if hasattr(dto2, '_cache_test_ausl_proxy_set'): delattr(dto2, '_cache_test_ausl_proxy_set')
+        a2 = dto2.ausl
+        self.assertIsInstance(a2, DcProxy, f"reload should be DcProxy, got {type(a2).__name__}")
+        self.assertEqual(a2.fav, 3)
+
+
 if __name__ == "__main__": unittest.main()

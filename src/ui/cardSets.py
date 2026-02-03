@@ -60,7 +60,7 @@ class k:
 
 
 optThresholdMin = 0.5
-optThresholdMarks = { "0.5":0.5, "0.6":0.6, "0.7": 0.7, "0.8": 0.8, "0.9": 0.9, "1": 1 }
+optThresholdMarks = {"0.5":0.5, "0.6":0.6, "0.7": 0.7, "0.8": 0.8, "0.9": 0.9, "1": 1}
 
 optMaxDepths = []
 for i in range(6): optMaxDepths.append({"label": f"{i}", "value": i})
@@ -79,8 +79,7 @@ def _getUsrOpts():
     try:
         usrs = db.psql.fetchUsers()
         if usrs:
-            for usr in usrs:
-                opts.append({"label": usr.name or usr.email or usr.id[:8], "value": str(usr.id)})
+            for usr in usrs: opts.append({"label": usr.name or usr.email or usr.id[:8], "value": str(usr.id)})
     except: pass
     return opts
 
@@ -102,7 +101,7 @@ def _getUsrWgtVal():
 optExclLess = [{"label": "--", "value": 0}]
 for i in range(1,6): optExclLess.append({"label": f" < {i}", "value": i})
 
-optExclOver = [ {"label": "--", "value": 0} ]
+optExclOver = [{"label": "--", "value": 0}]
 for i in [10,20,30,50,100]: optExclOver.append({"label": f" > {i}", "value": i})
 
 optGpuBatch = {}
@@ -116,17 +115,17 @@ for i in range(1, min(cpuCnt + 1, 17)): optCpuWorkers[str(i)] = i
 
 def renderThreshold():
     return dbc.Card([
-        dbc.CardHeader(["Threshold Min",htm.Small("sets minimum similarity for matching") ]),
+        dbc.CardHeader(["Threshold Min",htm.Small("sets minimum similarity for matching")]),
         dbc.CardBody([
             htm.Div([
                 htm.Div([
                     dcc.Slider(
                         id=k.id(k.threshold), min=optThresholdMin, max=1, step=0.01, marks=optThresholdMarks, #type: ignore
                         value=db.dto.thMin, included=False,
-                        tooltip={ "placement": "top", "always_visible": True, "style": {"padding": "0 1px 0 1px", "fontSize": "11px"}, },
+                        tooltip={"placement": "top", "always_visible": True, "style": {"padding": "0 1px 0 1px", "fontSize": "11px"},},
                     ),
                 ], className=""),
-                htm.Ul([  ])
+                htm.Ul([])
             ], className="irow mb-0"),
         ])
     ], className="ifns mb-1")
@@ -171,7 +170,7 @@ def renderAutoSelect():
     a = db.dto.ausl
     dis = not a.on
     return dbc.Card([
-        dbc.CardHeader(["Auto Selection",htm.Small("selects top point in group") ]),
+        dbc.CardHeader(["Auto Selection",htm.Small("selects top point in group")]),
         dbc.CardBody([
             htm.Div([
                 # Main enable switch
@@ -281,9 +280,9 @@ def renderCard():
 
             htm.Div([
                 htm.Label([
-				  "Related Tree",
-				   htm.Span("Expand similar-tree to include relateds. Keep/Delete affects all displayed images", className="txt-smx text-muted ms-3")
- 			   ], className="txt-sm"),
+                    "Related Tree",
+                    htm.Span("Expand similar-tree to include relateds. Keep/Delete affects all displayed images", className="txt-smx text-muted ms-3")
+                ], className="txt-sm"),
                 htm.Div([
                     dbc.Checkbox(id=k.id(k.simRtree), label="Related Tree", value=db.dto.rtree),
 
@@ -349,17 +348,17 @@ def renderCard():
 
                     htm.Div([
                         htm.Label("SimilarLess: ", className="txt-sm"),
-                        dbc.Select(id=k.excl("fndLes"), options=toOpts(optExclLess), value=db.dto.excl.fndLes, className="txt-smx", disabled=not db.dto.excl.on, style={"maxWidth":"30px"})
+                        dbc.Select(id=k.excl("fndLes"), options=toOpts(optExclLess), value=db.dto.excl.fndLes, className="txt-smx", disabled=not db.dto.excl.on, style={"maxWidth": "30px"})
                     ]),
 
                     htm.Div([
                         htm.Label("SimilarOver: ", className="txt-sm"),
-                        dbc.Select(id=k.excl("fndOvr"), options=toOpts(optExclOver), value=db.dto.excl.fndOvr, className="txt-smx", disabled=not db.dto.excl.on, style={"maxWidth":"30px"})
+                        dbc.Select(id=k.excl("fndOvr"), options=toOpts(optExclOver), value=db.dto.excl.fndOvr, className="txt-smx", disabled=not db.dto.excl.on, style={"maxWidth": "30px"})
                     ]),
 
                     htm.Div([
                         htm.Label("NameFilter", className="txt-sm"),
-                        dbc.Input( id=k.excl("filNam"), maxlength=70, placeholder='separate by ","', value=db.dto.excl.filNam, disabled=not db.dto.excl.on, className="txt-sm", style={"maxWidth": "80px"} )
+                        dbc.Input(id=k.excl("filNam"), maxlength=70, placeholder='separate by ","', value=db.dto.excl.filNam, disabled=not db.dto.excl.on, className="txt-sm", style={"maxWidth": "80px"})
                     ]),
 
                 ], className="icbxs"),
@@ -418,7 +417,7 @@ def settings_OnUpd(th, auNxt, shGdInfo, rtree,  maxItems, pathFilter, muodOn,muo
     db.dto.rtreeMax = maxItems
     db.dto.pathFilter = pathFilter or ''
 
-    db.dto.muod = Muod(muodOn, muodMxGs)
+    db.dto.muod = Muod(muodOn, muodMxGs or 10)
     db.dto.gpsk = Gpsk(gDt,gW,gH,gFsz)
 
     maxGroupsDisabled = not muodOn
@@ -426,11 +425,10 @@ def settings_OnUpd(th, auNxt, shGdInfo, rtree,  maxItems, pathFilter, muodOn,muo
     def reloadAssets():
         nonlocal retNow, now
         lg.info(f"[sets:OnUpd] reload, rtree[{db.dto.rtree}] muodMode[{db.dto.muod.on}]")
-        now.sim.assCur = db.pics.getSimAssets(now.sim.assAid, db.dto.rtree if not db.dto.muod.on else False )
+        now.sim.assCur = db.pics.getSimAssets(now.sim.assAid, db.dto.rtree if not db.dto.muod.on else False)
         retNow = now
 
-    if db.dto.showGridInfo != shGdInfo:
-        db.dto.showGridInfo = shGdInfo
+    if db.dto.showGridInfo != shGdInfo: db.dto.showGridInfo = shGdInfo
 
     if db.dto.rtree != rtree:
         db.dto.rtree = rtree
@@ -556,7 +554,6 @@ def renderCpuSettings():
 
 
 
-
 @cbk(
     [
         out(k.id(k.gpuBatchSize), "disabled"),
@@ -614,17 +611,14 @@ def mrg_OnUpd(values):
 
 def _chkPathIcon(localPth):
     import os
-    if not localPth:
-        return htm.I(className="bi bi-dash-circle text-muted")
-    if os.path.exists(localPth):
-        return htm.I(className="bi bi-check-circle-fill text-success")
+    if not localPth: return htm.I(className="bi bi-dash-circle text-muted")
+    if os.path.exists(localPth): return htm.I(className="bi bi-check-circle-fill text-success")
     return htm.I(className="bi bi-x-circle-fill text-danger")
 
 def _renderLibPathRows():
     import os
     libPaths = db.dto.pathLibs or {}
-    if not libPaths:
-        return htm.Div("No external libraries. Fetch assets to detect libraries.", className="text-muted txt-sm")
+    if not libPaths: return htm.Div("No external libraries. Fetch assets to detect libraries.", className="text-muted txt-sm")
 
     rows = []
     for idx, (immichPth, localPth) in enumerate(libPaths.items()):
@@ -751,8 +745,7 @@ def libPaths_OnUpd(values, dataJson):
     keys = list(libPaths.keys())
 
     for idx, val in enumerate(values):
-        if idx < len(keys):
-            libPaths[keys[idx]] = val or ""
+        if idx < len(keys): libPaths[keys[idx]] = val or ""
 
     db.dto.pathLibs = libPaths
     lg.info(f"[libPaths:OnUpd] Updated {len(libPaths)} mappings")

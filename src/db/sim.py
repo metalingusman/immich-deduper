@@ -107,7 +107,8 @@ def searchBy(src: Optional[models.Asset], doRep: IFnProg, isCancel: IFnCancel, f
 
     skipAids = []
 
-    sizeMax = db.dto.muod.sz
+    sizeMax = db.dto.muod.sz or 1
+    lg.info( f"[sim:sh] muod.sz[{db.dto.muod.sz}] sizeMax[{sizeMax}]")
 
     while len(gis) < sizeMax:
         if isCancel():
@@ -287,6 +288,7 @@ def processChildren(asset: models.Asset, bseInfos: List[models.SimInfo], simAids
 
 
 def getAutoSelectAuids(src: List[models.Asset]) -> List[int]:
+  try:
     lg.info(f"[ausl] Starting auto-selection, auSelEnable[{db.dto.ausl}], assets count={len(src) if src else 0}")
     lg.info(f"[ausl] Weights: Earlier[{db.dto.ausl.earlier}] Later[{db.dto.ausl.later}] ExifRich[{db.dto.ausl.exRich}] ExifPoor[{db.dto.ausl.exPoor}] BigSize[{db.dto.ausl.ofsBig}] SmallSize[{db.dto.ausl.ofsSml}] BigDim[{db.dto.ausl.dimBig}] SmallDim[{db.dto.ausl.dimSml}] HighSim[{db.dto.ausl.skipLow}] AlwaysPickLivePhoto[{db.dto.ausl.allLive}] jpg[{db.dto.ausl.typJpg}] png[{db.dto.ausl.typPng}] heic[{db.dto.ausl.typHeic}] fav[{db.dto.ausl.fav}] inAlb[{db.dto.ausl.inAlb}]")
 
@@ -330,6 +332,15 @@ def getAutoSelectAuids(src: List[models.Asset]) -> List[int]:
 
     lg.info(f"[ausl] Final selection: {len(selIds)} assets: {selIds}")
     return selIds
+  except TypeError as e:
+    from dataclasses import fields as dc_fields
+    a = db.dto.ausl
+    lg.error(f"[ausl:debug] proxy type: {type(a).__name__}")
+    dc = object.__getattribute__(a, '_dc')
+    for fld in dc_fields(dc):
+        v = getattr(dc, fld.name)
+        lg.error(f"[ausl:debug] {fld.name}: fldType={fld.type!r}, val={v!r}, valType={type(v).__name__}")
+    raise
 
 
 def _shouldSkipGroupBy(src: List[models.Asset], grpId: int) -> bool:

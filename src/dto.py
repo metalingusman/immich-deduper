@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass, is_dataclass, asdict, fields as dc_fields
+from dataclasses import dataclass, is_dataclass, asdict, fields as dc_fields, MISSING
 from typing import Any, Callable, cast, Generic, TypeVar, overload
 from conf import ks, Optional
 from util import log
@@ -9,15 +9,32 @@ lg = log.get(__name__)
 T = TypeVar('T')
 
 
-def _castVal(fldType, val):
-    if fldType is bool and isinstance(val, str): return val.lower() in ('true', '1', 'yes', 'on')
-    elif fldType is int and not isinstance(val, int): return int(val) if val else 0
-    elif fldType is float and not isinstance(val, (int, float)): return float(val) if val else 0.0
+_UNSET = object()
+
+def fldDflt(fld): return fld.default if fld.default is not MISSING else _UNSET
+
+def cstv(fldType, val, default=_UNSET):
+    if val is None: return default if default is not _UNSET else val
+    if fldType is bool:
+        if isinstance(val, str): return val.lower() in ('true', '1', 'yes', 'on')
+        return bool(val)
+    if fldType is int:
+        if isinstance(val, bool): return default if default is not _UNSET else (1 if val else 0)
+        if isinstance(val, int): return val
+        try: return int(val) if val else (default if default is not _UNSET else 0)
+        except (ValueError, TypeError): return default if default is not _UNSET else 0
+    if fldType is float:
+        if isinstance(val, bool): return default if default is not _UNSET else (1.0 if val else 0.0)
+        if isinstance(val, (int, float)): return float(val)
+        try: return float(val) if val else (default if default is not _UNSET else 0.0)
+        except (ValueError, TypeError): return default if default is not _UNSET else 0.0
+    if fldType is str:
+        if not isinstance(val, str): return str(val)
     return val
 
 
-def _castDc(dc):
-    for fld in dc_fields(dc): setattr(dc, fld.name, _castVal(fld.type, getattr(dc, fld.name)))
+def cstd(dc):
+    for fld in dc_fields(dc): setattr(dc, fld.name, cstv(fld.type, getattr(dc, fld.name), fldDflt(fld)))
     return dc
 
 
@@ -31,14 +48,14 @@ class DcProxy:
         dc = object.__getattribute__(self, '_dc')
         val = getattr(dc, name)
         for fld in dc_fields(dc):
-            if fld.name == name: return _castVal(fld.type, val)
+            if fld.name == name: return cstv(fld.type, val, fldDflt(fld))
         return val
 
     def __setattr__(self, name: str, value: Any) -> None:
         dc = object.__getattribute__(self, '_dc')
         for fld in dc_fields(dc):
             if fld.name == name:
-                value = _castVal(fld.type, value)
+                value = cstv(fld.type, value)
                 break
         setattr(dc, name, value)
         field: AutoDbField[Any] = object.__getattribute__(self, '_field')
@@ -46,7 +63,6 @@ class DcProxy:
         field._saveToDb(owner, dc)
 
     def __str__(self) -> str: return str(object.__getattribute__(self, '_dc'))
-
     def __repr__(self) -> str: return repr(object.__getattribute__(self, '_dc'))
 
 
@@ -69,39 +85,41 @@ class AutoDbField(Generic[T]):
         val = sets.get(self.key, self.default)
         if self.cast_type and val is not None:
             try:
-                if self.cast_type is bool: val = val.lower() in ('true', '1', 'yes', 'on') if isinstance(val, str) else bool(val)
-                elif self.cast_type is dict: val = json.loads(val) if isinstance(val, str) and val else self.default
+                if self.cast_type is dict: val = json.loads(val) if isinstance(val, str) and val else self.default
                 elif is_dataclass(self.cast_type):
                     data = json.loads(val) if isinstance(val, str) else val
                     if isinstance(data, dict):
-                        for fld in dc_fields(self.cast_type):
-                            if fld.name in data: data[fld.name] = _castVal(fld.type, data[fld.name])
-                        dc = cast(Any, self.cast_type)(**data)
+                        vk = {f.name for f in dc_fields(self.cast_type)}
+                        dc = cstd(cast(Any, self.cast_type)(**{k: v for k, v in data.items() if k in vk}))
                     else: dc = self.default
                     val = DcProxy(dc, cast(Any, self), instance)
-                else: val = self.cast_type(val)
+                else: val = cstv(self.cast_type, val)
             except (ValueError, TypeError, json.JSONDecodeError):
                 lg.error(f'[AutoDbField] Failed to convert {val} to {self.cast_type}, use default[{self.default}]')
                 val = self.default
-        setattr(instance, self._cache_key, val)
-        return val
+        return self._cache(instance, val)
 
     def __set__(self, instance, value):
         import db.sets as sets
         if self.cast_type and value is not None:
             try:
-                if self.cast_type is bool: value = _castVal(bool, value)
-                elif self.cast_type is dict: pass
-                elif is_dataclass(self.cast_type) and is_dataclass(value): _castDc(value)
-                else: value = cast(Callable[...,Any], self.cast_type)(value)
+                if self.cast_type is dict: pass
+                elif is_dataclass(self.cast_type) and is_dataclass(value): cstd(value)
+                else: value = cstv(self.cast_type, value)
             except (ValueError, TypeError):
                 lg.error(f'[AutoDbField] Failed to convert {value} to {self.cast_type} for key[{self.key}], use default[{self.default}]')
                 value = self.default
         self._saveToDb(instance, value)
-        setattr(instance, self._cache_key, value)
+        self._cache(instance, value)
+
+    def _cache(self, inst, val):
+        if is_dataclass(self.cast_type) and not isinstance(val, DcProxy) and is_dataclass(val): val = DcProxy(val, cast(Any, self), inst)
+        setattr(inst, self._cache_key, val)
+        return val
 
     def _saveToDb(self, instance, value):
         import db.sets as sets
+        if isinstance(value, DcProxy): value = object.__getattribute__(value, '_dc')
         if self.cast_type is dict: sets.save(self.key, json.dumps(value, ensure_ascii=False))
         elif is_dataclass(value): sets.save(self.key, json.dumps(asdict(cast(Any, value)), ensure_ascii=False))
         else: sets.save(self.key, str(value))
