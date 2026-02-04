@@ -544,13 +544,17 @@ button { text-decoration: none; }
 
 .card .igrid.divRows > div > *:nth-child(2n) { justify-self: start; }
 
-.card .igrid .icriteria { display: grid; grid-template-columns: 28% repeat(4, 1fr); }
+.card .igrid .icriteria { margin-bottom: 2px !important; display: grid; grid-template-columns: 1fr 18% 1fr 18% 10%; }
+
+.card .igrid .icriteria > *:nth-child(4) { margin-left: 6px; }
+
+.card .igrid .icriteria .tag { font-size: 11px !important; }
 
 .card .igrid .icriteria span { overflow: hidden; text-wrap: balance; }
 
-.card .igrid .icriteria.icriteria-wrap > *:nth-child(6) { grid-column-start: 2; }
+.card .igrid .icriteria.wrap > *:nth-child(6) { grid-column-start: 2; }
 
-.card .igrid .icriteria.icriteria-user > *:nth-child(2) { grid-column: span 2; }
+.card .igrid .icriteria input { padding: 1px 3px 1px 3px !important; }
 
 .card .irow { font-size: 14px; margin: 0; }
 

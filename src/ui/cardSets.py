@@ -83,20 +83,6 @@ def _getUsrOpts():
     except: pass
     return opts
 
-def _parseUsrPri():
-    val = db.dto.ausl.usr or ''
-    if ':' in val:
-        parts = val.split(':')
-        return parts[0], int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
-    return '', 0
-
-def _getUsrPriVal():
-    uid, _ = _parseUsrPri()
-    return uid
-
-def _getUsrWgtVal():
-    _, wgt = _parseUsrPri()
-    return wgt
 
 optExclLess = [{"label": "--", "value": 0}]
 for i in range(1,6): optExclLess.append({"label": f" < {i}", "value": i})
@@ -234,7 +220,7 @@ def renderAutoSelect():
                     dbc.Select(id=k.ausl("typPng"), options=toOpts(optWeights), value=a.typPng, disabled=dis, size="sm", className="me-1"),
                     htm.Label("Heic", className="me-2"),
                     dbc.Select(id=k.ausl("typHeic"), options=toOpts(optWeights), value=a.typHeic, disabled=dis, size="sm"),
-                ], className="icriteria icriteria-wrap"),
+                ], className="icriteria wrap"),
 
                 htm.Div([
                     htm.Span(htm.Span("Immich", className="tag txt-smx me-1")),
@@ -247,9 +233,17 @@ def renderAutoSelect():
                 htm.Div([
                     htm.Span(htm.Span("User", className="tag txt-smx me-1")),
                     htm.Label("name", className="me-2"),
-                    dbc.Select(id=k.ausl("usrPri"), options=toOpts(_getUsrOpts()), value=_getUsrPriVal(), disabled=dis, size="sm", className="me-1", style={"minWidth": "60px"}),
+                    dbc.Select(id=k.ausl("usrPri"), options=toOpts(_getUsrOpts()), value=a.usr.k, disabled=dis, size="sm", className="me-1", style={"minWidth": "60px"}),
                     htm.Label("Weight", className="me-2"),
-                    dbc.Select(id=k.ausl("usrWgt"), options=toOpts(optWeights), value=_getUsrWgtVal(), disabled=dis, size="sm"),
+                    dbc.Select(id=k.ausl("usrWgt"), options=toOpts(optWeights), value=a.usr.v, disabled=dis, size="sm"),
+                ], className="icriteria"),
+
+                htm.Div([
+                    htm.Span(htm.Span("Path", className="tag txt-smx me-1")),
+                    htm.Label("Contains", className="me-2"),
+                    dbc.Input(id=k.ausl("pthVal"), value=a.pth.k, disabled=dis, className="me-1 txt-smx", style={"maxWidth": "80%"}, placeholder="e.g. /library/clean"),
+                    htm.Label("Weight", className="me-2"),
+                    dbc.Select(id=k.ausl("pthWgt"), options=toOpts(optWeights), value=a.pth.v, disabled=dis, size="sm"),
                 ], className="icriteria"),
 
             ], className="mb-2 igrid txt-sm"),
@@ -443,8 +437,10 @@ def settings_OnUpd(th, auNxt, shGdInfo, rtree,  maxItems, pathFilter, muodOn,muo
     prevent_initial_call=True
 )
 def ausl_OnUpd(values):
+    from dto import PairKv
     a = db.dto.ausl
     usrPri, usrWgt = None, None
+    pthVal, pthWgt = None, None
 
     # ctx.inputs_list[0] 格式: [{'id': {'field': 'on', 'type': 'ausl'}, 'value': True}, ...]
     fields = []
@@ -455,10 +451,12 @@ def ausl_OnUpd(values):
 
         if fld == 'usrPri': usrPri = val
         elif fld == 'usrWgt': usrWgt = val
+        elif fld == 'pthVal': pthVal = val
+        elif fld == 'pthWgt': pthWgt = val
         else: setattr(a, fld, val)
 
-    if usrPri and usrWgt: a.usr = f"{usrPri}:{usrWgt}"
-    else: a.usr = ''
+    a.usr = PairKv(k=usrPri or '', v=usrWgt or 0)
+    a.pth = PairKv(k=pthVal or '', v=pthWgt or 0)
 
     lg.info(f"[ausl:OnUpd] {a}")
 

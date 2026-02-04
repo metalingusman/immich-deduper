@@ -573,21 +573,26 @@
 		}
 
 		.icriteria {
+
+			margin-bottom:2px!important;
+
 			display: grid;
-			grid-template-columns: 28% repeat(4, 1fr);
+			grid-template-columns: 1fr 18% 1fr 18% 10%;
+
+			> *:nth-child(4) { margin-left: 6px; }
+
+			.tag { font-size:11px!important }
 
 			span {
 				overflow: hidden;
 				text-wrap: balance;
 			}
 
-			&.icriteria-wrap > *:nth-child(6) {
+			&.wrap > *:nth-child(6) {
 				grid-column-start: 2;
 			}
 
-			&.icriteria-user > *:nth-child(2) {
-				grid-column: span 2;
-			}
+			input { padding:1px 3px 1px 3px!important; }
 		}
 	}
 

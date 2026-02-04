@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass, is_dataclass, asdict, fields as dc_fields, MISSING
+from dataclasses import dataclass, field, is_dataclass, asdict, fields as dc_fields, MISSING
 from typing import Any, Callable, cast, Generic, TypeVar, overload
 from conf import ks, Optional
 from util import log
@@ -11,7 +11,10 @@ T = TypeVar('T')
 
 _UNSET = object()
 
-def fldDflt(fld): return fld.default if fld.default is not MISSING else _UNSET
+def fldDflt(fld):
+    if fld.default is not MISSING: return fld.default
+    if fld.default_factory is not MISSING: return fld.default_factory()
+    return _UNSET
 
 def cstv(fldType, val, default=_UNSET):
     if val is None: return default if default is not _UNSET else val
@@ -30,6 +33,12 @@ def cstv(fldType, val, default=_UNSET):
         except (ValueError, TypeError): return default if default is not _UNSET else 0.0
     if fldType is str:
         if not isinstance(val, str): return str(val)
+    if is_dataclass(fldType):
+        if isinstance(val, dict):
+            vk = {f.name for f in dc_fields(fldType)}
+            return cstd(fldType(**{k: v for k, v in val.items() if k in vk}))
+        if is_dataclass(val): return cstd(val)
+        return default if default is not _UNSET else fldType()
     return val
 
 
@@ -101,6 +110,7 @@ class AutoDbField(Generic[T]):
 
     def __set__(self, instance, value):
         import db.sets as sets
+        if isinstance(value, DcProxy): value = object.__getattribute__(value, '_dc')
         if self.cast_type and value is not None:
             try:
                 if self.cast_type is dict: pass
@@ -123,6 +133,11 @@ class AutoDbField(Generic[T]):
         if self.cast_type is dict: sets.save(self.key, json.dumps(value, ensure_ascii=False))
         elif is_dataclass(value): sets.save(self.key, json.dumps(asdict(cast(Any, value)), ensure_ascii=False))
         else: sets.save(self.key, str(value))
+
+@dataclass
+class PairKv:
+    k:str = ''
+    v:int = 0
 
 @dataclass
 class Muod:
@@ -156,7 +171,8 @@ class Ausl:
     typHeic:int = 0
     fav:int = 0
     inAlb:int = 0
-    usr:str = ''
+    usr:PairKv = field(default_factory=PairKv)
+    pth:PairKv = field(default_factory=PairKv)
 
 @dataclass
 class Mrg:

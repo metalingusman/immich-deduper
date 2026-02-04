@@ -290,7 +290,7 @@ def processChildren(asset: models.Asset, bseInfos: List[models.SimInfo], simAids
 def getAutoSelectAuids(src: List[models.Asset]) -> List[int]:
   try:
     lg.info(f"[ausl] Starting auto-selection, auSelEnable[{db.dto.ausl}], assets count={len(src) if src else 0}")
-    lg.info(f"[ausl] Weights: Earlier[{db.dto.ausl.earlier}] Later[{db.dto.ausl.later}] ExifRich[{db.dto.ausl.exRich}] ExifPoor[{db.dto.ausl.exPoor}] BigSize[{db.dto.ausl.ofsBig}] SmallSize[{db.dto.ausl.ofsSml}] BigDim[{db.dto.ausl.dimBig}] SmallDim[{db.dto.ausl.dimSml}] HighSim[{db.dto.ausl.skipLow}] AlwaysPickLivePhoto[{db.dto.ausl.allLive}] jpg[{db.dto.ausl.typJpg}] png[{db.dto.ausl.typPng}] heic[{db.dto.ausl.typHeic}] fav[{db.dto.ausl.fav}] inAlb[{db.dto.ausl.inAlb}]")
+    lg.info(f"[ausl] Weights: Earlier[{db.dto.ausl.earlier}] Later[{db.dto.ausl.later}] ExifRich[{db.dto.ausl.exRich}] ExifPoor[{db.dto.ausl.exPoor}] BigSize[{db.dto.ausl.ofsBig}] SmallSize[{db.dto.ausl.ofsSml}] BigDim[{db.dto.ausl.dimBig}] SmallDim[{db.dto.ausl.dimSml}] HighSim[{db.dto.ausl.skipLow}] AlwaysPickLivePhoto[{db.dto.ausl.allLive}] jpg[{db.dto.ausl.typJpg}] png[{db.dto.ausl.typPng}] heic[{db.dto.ausl.typHeic}] fav[{db.dto.ausl.fav}] inAlb[{db.dto.ausl.inAlb}] usr[{db.dto.ausl.usr}] pth[{db.dto.ausl.pth}]")
 
     if not db.dto.ausl or not src: return []
 
@@ -302,6 +302,7 @@ def getAutoSelectAuids(src: List[models.Asset]) -> List[int]:
             db.dto.ausl.namLon > 0, db.dto.ausl.namSht > 0,
             db.dto.ausl.typJpg > 0, db.dto.ausl.typPng > 0, db.dto.ausl.typHeic > 0,
             db.dto.ausl.fav > 0, db.dto.ausl.inAlb > 0,
+            db.dto.ausl.usr.v > 0, db.dto.ausl.pth.v > 0,
         ])
 
     if not active: return []
@@ -400,6 +401,7 @@ class IMetrics:
     isFav: bool
     hasAlb: bool
     ownerId: str
+    path: str
 
 
 def _selectBestAsset(grpAssets: List[models.Asset]) -> int:
@@ -441,7 +443,8 @@ def _selectBestAsset(grpAssets: List[models.Asset]) -> int:
             isFav = bool(ass.isFavorite)
             hasAlb = bool(ass.ex and ass.ex.albs)
             ownerId = ass.ownerId or ''
-            metrics.append(IMetrics(aid=ass.autoId, dt=ndt, exfCnt=exfCnt, fileSz=fileSz, dim=dim, nameLen=nameLen, fileType=fileType, isFav=isFav, hasAlb=hasAlb, ownerId=ownerId))
+            path = ass.originalPath or ''
+            metrics.append(IMetrics(aid=ass.autoId, dt=ndt, exfCnt=exfCnt, fileSz=fileSz, dim=dim, nameLen=nameLen, fileType=fileType, isFav=isFav, hasAlb=hasAlb, ownerId=ownerId, path=path))
         return metrics
 
     def calcScore(idx: int, met: List[IMetrics]) -> Tuple[int, List[str]]:
@@ -501,22 +504,24 @@ def _selectBestAsset(grpAssets: List[models.Asset]) -> int:
             score += pts
             details.append(f"InAlb+{pts}")
 
-        usrPar = db.dto.ausl.usr or ''
-        if usrPar and ':' in usrPar:
-            parts = usrPar.split(':')
-            uid = parts[0]
-            sco = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
-            if sco > 0 and met[idx].ownerId == uid:
-                pts = sco * 10
-                score += pts
-                details.append(f"Owner+{pts}")
+        usrCfg = db.dto.ausl.usr
+        if usrCfg.v > 0 and usrCfg.k and met[idx].ownerId == usrCfg.k:
+            pts = usrCfg.v * 10
+            score += pts
+            details.append(f"Owner+{pts}")
+
+        pthCfg = db.dto.ausl.pth
+        if pthCfg.v > 0 and pthCfg.k and pthCfg.k in met[idx].path:
+            pts = pthCfg.v * 10
+            score += pts
+            details.append(f"Path+{pts}")
 
         return score, details
 
     met = collectMetrics(grpAssets)
 
     lg.info(f"[ausl] Group comparison:")
-    for m in met: lg.info(f"[ausl]   #{m.aid}: date[{m.dt}] exif[{m.exfCnt}] fsize[{m.fileSz}] dim[{m.dim}] name[{m.nameLen}] fav[{m.isFav}] alb[{m.hasAlb}] owner[{m.ownerId[:8] if m.ownerId else ''}]")
+    for m in met: lg.info(f"[ausl]   #{m.aid}: date[{m.dt}] exif[{m.exfCnt}] fsize[{m.fileSz}] dim[{m.dim}] name[{m.nameLen}] fav[{m.isFav}] alb[{m.hasAlb}] owner[{m.ownerId[:8] if m.ownerId else ''}] path[{m.path[:40] if m.path else ''}]")
 
     bestAss = None
     bestScr = -1
