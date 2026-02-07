@@ -22,13 +22,13 @@ function _checkLivePhoto(grpAssets, ausl){
 }
 
 function _shouldSkipLowSim(grpAssets, ausl){
-	if (!ausl?.skipLow) return { skip: false, lowScoreAssets: [] }
+	if (!ausl?.skipLow) return {skip: false, lowScoreAssets: []}
 	const lowScoreAssets = []
-	for ( const ass of grpAssets ){
+	for ( const ass of grpAssets){
 		const scr = ass.vw?.score
-		if (scr && scr !== 0 && scr <= 0.96) lowScoreAssets.push({ aid: ass.autoId, score: scr })
+		if (scr && scr !== 0 && scr <= 0.96) lowScoreAssets.push({aid: ass.autoId, score: scr})
 	}
-	return { skip: lowScoreAssets.length > 0, lowScoreAssets }
+	return {skip: lowScoreAssets.length > 0, lowScoreAssets}
 }
 
 function _countExif(exif){
@@ -197,10 +197,66 @@ window.autoSelectReasons = {}
 window.autoSelectGroupLogs = {}
 
 let _lastAutoSelSig = null
+let _auslObserver = null
+let _auslTimeout = null
+
 function getAutoSelSig(assets, ausl){
 	const assSig = assets?.map(a => a.autoId).sort((a,b) => a - b).join(',') || ''
 	const auslSig = JSON.stringify(ausl || {})
 	return `${assSig}|${auslSig}`
+}
+
+function cleanupAutoSelect(){
+	if (_auslObserver) {
+		_auslObserver.disconnect()
+		_auslObserver = null
+	}
+	if (_auslTimeout) {
+		clearTimeout(_auslTimeout)
+		_auslTimeout = null
+	}
+}
+
+function waitForCardsAndUpdate(autoSelectedIds){
+	cleanupAutoSelect()
+
+	function doUpdate(){
+		cleanupAutoSelect()
+		Ste.updAllCss()
+		Ste.updBtns()
+		updateAutoSelectTips()
+		insertAutoSelectLogBtns()
+		dsh.syncSte(Ste.cntTotal, Ste.selectedIds)
+		if (autoSelectedIds.length > 0) notify(`[Auto Selection] selected ${autoSelectedIds.length} items`, 'success')
+		console.log(`[Ste] Auto-selected ${autoSelectedIds.length} items`)
+	}
+
+	if (!autoSelectedIds.length) {
+		console.log('[Ste] No auto-selection needed')
+		Ste.updBtns()
+		dsh.syncSte(Ste.cntTotal, Ste.selectedIds)
+		return
+	}
+
+	const cards = document.querySelectorAll(`[id*='"type":"card-select"']`)
+	if (cards.length > 0) {
+		doUpdate()
+		return
+	}
+
+	const container = document.querySelector('.gv') || document.body
+	_auslObserver = new MutationObserver(() =>{
+		const cards = document.querySelectorAll(`[id*='"type":"card-select"']`)
+		if (cards.length > 0) doUpdate()
+	})
+	_auslObserver.observe(container, {childList: true, subtree: true})
+
+	_auslTimeout = setTimeout(() =>{
+		if (_auslObserver) {
+			console.warn('[Ste] Timeout waiting for cards')
+			cleanupAutoSelect()
+		}
+	}, 6000)
 }
 
 function getAutoSelectAuids(assets, ausl){
@@ -231,7 +287,7 @@ function getAutoSelectAuids(assets, ausl){
 		if (liveIds.length) {
 			console.log(`[ausl] Group ${gid}: Selected ALL LivePhoto assets [${liveIds.join(', ')}]`)
 			for ( const lid of liveIds ) window.autoSelectReasons[lid] = ['LivePhoto']
-			window.autoSelectGroupLogs[gid] = { status: 'livephoto', selectedAids: liveIds, reason: 'All LivePhotos selected', details: [] }
+			window.autoSelectGroupLogs[gid] = {status: 'livephoto', selectedAids: liveIds, reason: 'All LivePhotos selected', details: []}
 			selIds.push(...liveIds)
 			continue
 		}
@@ -240,7 +296,7 @@ function getAutoSelectAuids(assets, ausl){
 		if (skipResult.skip) {
 			const lowList = skipResult.lowScoreAssets.map(a => `#${a.aid}(${a.score.toFixed(4)})`).join(', ')
 			console.log(`[ausl] Group ${gid}: SKIPPING due to low similarity: ${lowList}`)
-			window.autoSelectGroupLogs[gid] = { status: 'skipped', selectedAids: [], reason: `Skipped: low similarity (<0.96)`, details: skipResult.lowScoreAssets.map(a => ({ aid: a.aid, score: a.score, reasons: ['Low similarity'] })) }
+			window.autoSelectGroupLogs[gid] = {status: 'skipped', selectedAids: [], reason: `Skipped: low similarity (<0.96)`, details: skipResult.lowScoreAssets.map(a => ({aid: a.aid, score: a.score, reasons: ['Low similarity']}))}
 			continue
 		}
 
@@ -248,10 +304,10 @@ function getAutoSelectAuids(assets, ausl){
 		if (result?.aid) {
 			selIds.push(result.aid)
 			window.autoSelectReasons[result.aid] = result.reasons
-			window.autoSelectGroupLogs[gid] = { status: 'selected', selectedAids: [result.aid], reason: `Selected #${result.aid} (score: ${result.score})`, details: Object.entries(result.allScores).map(([aid, d]) => ({ aid: parseInt(aid), score: d.score, reasons: d.reasons })) }
+			window.autoSelectGroupLogs[gid] = {status: 'selected', selectedAids: [result.aid], reason: `Selected #${result.aid} (score: ${result.score})`, details: Object.entries(result.allScores).map(([aid, d]) => ({aid: parseInt(aid), score: d.score, reasons: d.reasons}))}
 			console.log(`[ausl] Group ${gid}: Selected best asset #${result.aid}`)
 		} else {
-			window.autoSelectGroupLogs[gid] = { status: 'no_winner', selectedAids: [], reason: 'No winner: all scores are 0', details: result?.allScores ? Object.entries(result.allScores).map(([aid, d]) => ({ aid: parseInt(aid), score: d.score, reasons: d.reasons })) : [] }
+			window.autoSelectGroupLogs[gid] = {status: 'no_winner', selectedAids: [], reason: 'No winner: all scores are 0', details: result?.allScores ? Object.entries(result.allScores).map(([aid, d]) => ({aid: parseInt(aid), score: d.score, reasons: d.reasons})) : []}
 		}
 	}
 
@@ -298,7 +354,7 @@ function insertAutoSelectLogBtns(){
 	if (!Object.keys(logs).length) return
 
 	const hrDivs = document.querySelectorAll('.gv.fsp .hr')
-	hrDivs.forEach(hr => {
+	hrDivs.forEach(hr =>{
 		const label = hr.querySelector('label')
 		if (!label) return
 
@@ -330,7 +386,7 @@ function showAutoSelectLogModal(gid){
 	let detailsHtml = ''
 	if (log.details?.length) {
 		detailsHtml = '<table class="ausl-log-table"><thead><tr><th>#ID</th><th>Score</th><th>Reasons</th></tr></thead><tbody>'
-		for (const d of log.details) {
+		for (const d of log.details){
 			const isWinner = log.selectedAids?.includes(d.aid)
 			detailsHtml += `<tr class="${isWinner ? 'winner' : ''}"><td>#${d.aid}</td><td>${d.score}</td><td>${d.reasons?.join(', ') || '-'}</td></tr>`
 		}
@@ -352,7 +408,7 @@ function showAutoSelectLogModal(gid){
 			</div>
 		</div>
 	`
-	modal.onclick = (e) => { if (e.target === modal) modal.remove() }
+	modal.onclick = (e) =>{if (e.target === modal) modal.remove()}
 	document.body.appendChild(modal)
 }
 
@@ -364,7 +420,7 @@ function getCardById(targetId){
 	// console.log(`[getCardById] Looking for targetId: ${targetId} (type: ${typeof targetId}), found ${cards.length} cards`)
 
 	for ( const cd of cards){
-		try {
+		try{
 			const idAttr = JSON.parse(cd.id)
 			const cardId = parseInt(idAttr.id)
 			const searchId = parseInt(targetId)
@@ -438,28 +494,7 @@ window.dash_clientside.similar = {
 
 				for ( const autoId of autoSelectedIds ) Ste.selectedIds.add(autoId)
 
-				setTimeout(() =>{
-					const cards = document.querySelectorAll(`[id*='"type":"card-select"']`)
-					if (cards.length > 0) {
-						Ste.updAllCss()
-						Ste.updBtns()
-						updateAutoSelectTips()
-						insertAutoSelectLogBtns()
-						dsh.syncSte(Ste.cntTotal, Ste.selectedIds)
-						if (autoSelectedIds.length > 0) notify(`[Auto Selection] selected ${autoSelectedIds.length} items`, 'success')
-						console.log(`[Ste] Auto-selected ${autoSelectedIds.length} items`)
-					}
-					else {
-						setTimeout(() =>{
-							Ste.updAllCss()
-							Ste.updBtns()
-							updateAutoSelectTips()
-							insertAutoSelectLogBtns()
-							dsh.syncSte(Ste.cntTotal, Ste.selectedIds)
-							console.log(`[Ste] Retry: auto-selected ${autoSelectedIds.length} items`)
-						}, 200)
-					}
-				}, 300)
+				waitForCardsAndUpdate(autoSelectedIds)
 			}
 		}
 		return dash_clientside.no_update
@@ -506,7 +541,7 @@ function groupAssetsByVisualGroups(data){
 		} else {
 			const metaDiv = child.querySelector('.card-meta')
 			if (metaDiv && metaDiv.dataset.meta) {
-				try {
+				try{
 					const meta = JSON.parse(metaDiv.dataset.meta)
 					currentGroupAssets.push({
 						assetId: meta.id,
@@ -536,7 +571,7 @@ function groupAssetsByVisualGroups(data){
 // Export IDs to JSON
 //------------------------------------------------------------------------
 window.exportIdsToCSV = function exportIdsToCSV(){
-	try {
+	try{
 		const cards = document.querySelectorAll('.card-meta')
 
 		if (cards.length === 0) {
@@ -547,11 +582,11 @@ window.exportIdsToCSV = function exportIdsToCSV(){
 		// Extract data from each meta element
 		const data = []
 		cards.forEach(metaDiv =>{
-			try {
+			try{
 				console.log('[Export] Processing metaDiv:', metaDiv.dataset)
 				if (metaDiv.dataset.meta) {
 					console.log('[Export] Meta data:', metaDiv.dataset.meta)
-					try {
+					try{
 						const meta = JSON.parse(metaDiv.dataset.meta)
 						console.log('[Export] Parsed meta:', meta)
 						data.push({
