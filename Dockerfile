@@ -1,7 +1,7 @@
 # syntax = docker/dockerfile:1.5
 
 # Build argument for device selection
-ARG DEVICE=cuda
+ARG DEVICE=cpu
 
 FROM python:3.12-slim-bookworm
 
@@ -24,11 +24,11 @@ COPY requirements*.txt ./
 # Install dependencies based on device type
 RUN --mount=type=cache,target=/root/.cache \
     if [ "$DEVICE" = "cpu" ]; then \
-        pip install --no-cache-dir -r requirements-cpu.txt; \
-    elif [ "$DEVICE" = "cuda" ] || [ "$DEVICE" = "all" ]; then \
-        pip install --no-cache-dir -r requirements-cuda.txt; \
+        pip install -r requirements-cpu.txt; \
+    elif [ "$DEVICE" = "cuda" ]; then \
+        pip install -r requirements-cuda.txt; \
     else \
-        echo "Unsupported DEVICE=$DEVICE (expected: cpu, cuda, all)" >&2; exit 1; \
+        echo "Unsupported DEVICE=$DEVICE (expected: cpu, cuda)" >&2; exit 1; \
     fi
 
 COPY src/ ./src/

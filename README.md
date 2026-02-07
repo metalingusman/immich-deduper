@@ -365,7 +365,7 @@ Using Docker Compose is the easiest installation method, automatically including
    - `IMMICH_PATH`: Path to your Immich upload directory
    - `IMMICH_THUMB`: (Optional) Path for separate thumbnail directory (requires additional volume mount)
    - `DEDUP_DATA`: Directory for Deduper data storage
-   - `DEDUP_IMAGE`: Deduper image tag to run (`latest` default GPU/backward-compatible, `latest-cuda`, or `latest-cpu`)
+   - `DEDUP_IMAGE`: Deduper image tag to run (`latest` default CPU, `latest-cuda`, or `latest-cpu`)
    - `QDRANT_URL`: (Optional) Custom Qdrant database URL for non-Docker environments or custom container setups
    - `OFFLINE`: (Optional) Set to `true` for air-gapped environments (see [Offline Mode](#offline-mode))
 
@@ -387,7 +387,7 @@ Using Docker Compose is the easiest installation method, automatically including
    Set `DEDUP_IMAGE` in your `.env`:
 
    ```env
-   # Default (GPU, backward-compatible)
+   # Default (CPU)
    DEDUP_IMAGE=razgrizhsu/immich-deduper:latest
    ```
 
@@ -396,7 +396,7 @@ Using Docker Compose is the easiest installation method, automatically including
    DEDUP_IMAGE=razgrizhsu/immich-deduper:latest-cpu
    ```
 
-   If using a GPU image (`latest` or `latest-cuda`), add (or uncomment) GPU device reservation in `docker-compose.yml`:
+   If using a GPU image (`latest-cuda`), add (or uncomment) GPU device reservation in `docker-compose.yml`:
 
    ```yaml
    deploy:
@@ -436,7 +436,7 @@ Using Docker Compose is the easiest installation method, automatically including
 
 ### Docker Image Tags
 
-- `latest`: default GPU image tag (backward-compatible compose default)
+- `latest`: default CPU image tag (compose default)
 - `latest-cuda`: explicit CUDA-enabled image for Linux + NVIDIA GPU
 - `latest-cpu`: CPU-only image, much smaller than CUDA
 
@@ -479,10 +479,9 @@ For custom environments and development needs.
 
 4. **Install Python Dependencies**
    
-   **CPU version (default / backward-compatible):**
+   **CPU/macOS-compatible version (default):**
    ```bash
    pip install -r requirements.txt
-   # equivalent: pip install -r requirements-cpu.txt
    ```
 
    **GPU acceleration:**
@@ -491,8 +490,7 @@ For custom environments and development needs.
    pip install -r requirements-cuda.txt
    
    # macOS with Apple Silicon (MPS)
-   pip install torch torchvision
-   pip install -r requirements-base.txt
+   pip install -r requirements.txt
    
    # Windows with NVIDIA GPU
    pip install -r requirements-cuda.txt
