@@ -234,6 +234,7 @@ function waitForCardsAndUpdate(autoSelectedIds){
 	if (!autoSelectedIds.length) {
 		console.log('[Ste] No auto-selection needed')
 		Ste.updBtns()
+		insertAutoSelectLogBtns()
 		dsh.syncSte(Ste.cntTotal, Ste.selectedIds)
 		return
 	}

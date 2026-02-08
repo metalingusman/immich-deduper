@@ -1,5 +1,27 @@
 window.dash_clientside = window.dash_clientside || {}
 
+//============================================================================
+// suppress page-specific callback errors for multi-page apply
+// this is unfortunately a known limitation of the Dash multi-page framework
+//
+// if anyone have better solution, please tell me, thanks :)
+//============================================================================
+;(function(){
+	const pageIds = ['sim-gvSim', 'sim-gvPnd', 'fetch-usr-select']
+	const origErr = console.error
+	console.error = function(...args){
+		const msg = String(args[0]?.message || args[0] || '')
+		if (msg.includes('nonexistent object')) {
+			const matched = pageIds.find(id => msg.includes(id))
+			if (matched) {
+				console.debug(`[dash] skipped page-specific callback: ${matched}`)
+				return
+			}
+		}
+		origErr.apply(console, args)
+	}
+})()
+
 const R = {
 	mk(t, props, ... children){return React.createElement(t, props, ... children)},
 }
