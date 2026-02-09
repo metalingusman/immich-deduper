@@ -24,7 +24,7 @@ class PgSim(BaseDictModel):
 
     assPend: List[Asset] = field(default_factory=list)
 
-    assFromUrl: Optional[Asset] = None
+    aidUrl: int = 0
 
     fspSize: bool = False
     fspW: bool = False
@@ -32,7 +32,6 @@ class PgSim(BaseDictModel):
 
     def clearNow(self):
         self.assAid = 0
-        self.assFromUrl = None
         self.assCur.clear()
 
     def clearAll(self):

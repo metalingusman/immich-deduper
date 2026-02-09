@@ -90,11 +90,11 @@ class BaseDictModel:
 
 
     @classmethod
-    def _covBasicType(cls, val: Any, target_type: Type) -> Any:
-        if target_type == str and not isinstance(val, str): return str(val)
-        if target_type == int and not isinstance(val, int): return int(val)
-        if target_type == float and not isinstance(val, float): return float(val)
-        if target_type == bool and not isinstance(val, bool): return bool(val)
+    def _covBasicType(cls, val: Any, toT: Type) -> Any:
+        if toT is str and not isinstance(val, str): return str(val)
+        if toT is int and not isinstance(val, int): return int(val)
+        if toT is float and not isinstance(val, float): return float(val)
+        if toT is bool and not isinstance(val, bool): return bool(val)
         return val
 
     @classmethod

@@ -89,7 +89,7 @@ def findCandidate(autoId: int, taskArgs: dict) -> models.Asset:
     asset = None
 
     if not autoId and taskArgs.get('assetId'):
-        lg.info(f"[sim:fnd] search from task args assetId")
+        # lg.info(f"[sim:fnd] search from task args assetId")
         assetId = taskArgs.get('assetId')
         asset = db.pics.getById(assetId)
         if asset: autoId = asset.autoId
@@ -105,13 +105,13 @@ def findCandidate(autoId: int, taskArgs: dict) -> models.Asset:
 
 
 
-def searchBy(src: Optional[models.Asset], doRep: IFnProg, isCancel: IFnCancel, fromUrl: bool=False) -> List[SearchInfo]:
+def searchBy(src: models.Asset, doRep: IFnProg, isCancel: IFnCancel, fromUrl: bool=False) -> List[SearchInfo]:
     gis = []
     ass = src
     grpIdx = 1
     skipAids = []
-    sizeMax = db.dto.muod.sz or 1
-    lg.info( f"[sim:sh] muod.sz[{db.dto.muod.sz}] sizeMax[{sizeMax}]")
+    sizeMax = ( db.dto.muod.sz or 1 ) if not fromUrl else 1 #when fromUrl only process one
+    lg.info( f"[sim:sh] sz[{db.dto.muod.sz}] sizeMax[{sizeMax}] url[{fromUrl}]")
 
     while len(gis) < sizeMax:
         if isCancel():
@@ -270,7 +270,7 @@ def processChildren(asset: models.Asset, bseInfos: List[models.SimInfo], simAids
             ass = db.pics.getByAutoId(aid)
             if ass.simOk: continue  # ignore already resolved
 
-            lg.info(f"[sim:fnd] search child #{aid} depth[{depth}]items({len(doneIds)}/{maxItems})")
+            # lg.info(f"[sim:fnd] search child #{aid} depth[{depth}]items({len(doneIds)}/{maxItems})")
             cVec, cInfos = db.vecs.findSimiliar(aid, thMin)
 
             db.pics.setSimGIDs(aid, rootGID)

@@ -709,7 +709,7 @@ window.exportIdsToCSV = function exportIdsToCSV(){
 //------------------------------------------------------------------------
 function initTabActsFloating(){
 	const tabActs = document.querySelector('.tab-acts')
-	if (!tabActs) return
+	if (!tabActs) throw new Error( `[tabActs] NotFound??` )
 
 	let placeholder = document.createElement('div')
 	placeholder.className = 'tab-acts-placeholder'

@@ -1,6 +1,9 @@
+from enum import auto
 import traceback
 from typing import Optional
 import time
+
+from dash.html import Option
 
 import immich
 import db
@@ -56,7 +59,7 @@ dash.register_page(
 
 
 class k:
-    assFromUrl = 'sim-AssFromUrl'
+    assUrl = 'sim-AssFromUrl'
 
     txtCntRs = 'sim-txt-cnt-records'
     txtCntOk = 'sim-txt-cnt-ok'
@@ -94,24 +97,18 @@ class k:
 
 #========================================================================
 def layout(autoId=None):
-    # return flask.redirect('/target-page') #auth?
 
-    guideAss: Optional[models.Asset] = None
 
-    if autoId:
-        lg.info(f"[sim] from url autoId[{autoId}]")
-        try:
+    try:
+        autoId = str(autoId)
+    except:
+        autoId=None
 
-            guideAss = db.pics.getByAutoId(autoId)
-            if guideAss:
-                lg.info(f"[sim] =============>>>> set target assetId[{guideAss.id}]")
-        except:
-            lg.error(f"[sim] not found asset from aid[{autoId}]", exc_info=True)
 
     import ui
     return ui.renderBody([
         #====== top start =======================================================
-        dcc.Store(id=k.assFromUrl, data=guideAss.toDict() if guideAss else {}),
+        dcc.Store(id=k.assUrl, data=autoId ),
 
         # 客戶端選擇狀態管理的 dummy 元素
         htm.Div(id={"type": "dummy-output", "id": "selection"}, style={"display": "none"}),
@@ -348,46 +345,64 @@ def sim_onPagerChanged(dta_pgr, dta_now):
         out(ks.sto.tsk, "data", allow_duplicate=True),
         out(ks.sto.nfy, "data", allow_duplicate=True),
     ],
-    inp(k.assFromUrl, "data"),
+    inp(k.assUrl, "data"),
     [
         ste(ks.sto.now, "data"),
         ste(ks.sto.nfy, "data"),
     ],
     prevent_initial_call="initial_duplicate"
 )
-def sim_SyncUrlAssetToNow(dta_ass, dta_now, dta_nfy):
+def sim_SyncUrlAssetToNow(autoId, dta_now, dta_nfy):
     now = Now.fromDic(dta_now)
     nfy = Nfy.fromDic(dta_nfy)
 
-    if not dta_ass:
-        if not now.sim.assFromUrl: return noUpd.by(3)
+    ass:Optional[models.Asset] = None
 
-        patch = dash.Patch()
-        patch['sim']['assFromUrl'] = None
-        return patch, noUpd, noUpd
+    if autoId:
+        autoId = int(autoId)
 
-    ass = models.Asset.fromDic(dta_ass)
+        if autoId == now.sim.aidUrl:
+            # 已執行過
+            return noUpd.by(3)
 
-    lg.info(f"[sim:sync] asset from url: #{ass.autoId} id[{ass.id}] simOk[{ass.simOk}]")
+        lg.info(f"[sim] from url autoId[{autoId}]")
+        ass = db.pics.getByAutoId(autoId)
+        if ass:
+            lg.info(f"[sim:sync] asset from url: #{ass.autoId} id[{ass.id}] simOk[{ass.simOk}]")
 
-    if ass.simOk == 1:
-        nfy.info(f'[sim:sync] ignore resolved #{ass.autoId}')
-        return noUpd, noUpd, nfy.toDict()
+            if ass.autoId == now.sim.aidUrl:
+                nfy.info(f'[sim:sync] ignore searched #{ass.autoId}')
+                return noUpd, noUpd, nfy.toDict()
+
+            if ass.simOk == 1:
+                nfy.info(f'[sim:sync] ignore resolved #{ass.autoId}')
+                return noUpd, noUpd, nfy.toDict()
+
+    if ass:
+        lg.info(f"[sim:sync] trigger #{ass.autoId} id[{ass.id}]")
+        now.sim.aidUrl = ass.autoId
+        now.sim.assAid = ass.autoId
+
+        mdl = Mdl()
+        mdl.id = ks.pg.similar
+        mdl.cmd = ks.cmd.sim.fnd
+        mdl.msg = f'Search images similar to {ass.autoId}'
+
+        tsk = mdl.mkTsk()
+
+        lg.info(f"[sim:sync] to task: {tsk}")
+        return now.toDict(), tsk.toDict(), noUpd
 
 
-    now.sim.assFromUrl = ass
-    now.sim.assAid = ass.autoId
+    # if not autoId:
+    #     if not now.sim.assUrl: return noUpd.by(3)
+    #
+    #     patch = dash.Patch()
+    #     patch['sim']['assUrl'] = None
+    #     return patch, noUpd, noUpd
 
-    mdl = Mdl()
-    mdl.id = ks.pg.similar
-    mdl.cmd = ks.cmd.sim.fnd
-    mdl.msg = f'Search images similar to {ass.autoId}'
+    return noUpd.by(3)
 
-    tsk = mdl.mkTsk()
-
-    lg.info(f"[sim:sync] to task: {tsk}")
-
-    return now.toDict(), tsk.toDict(), noUpd
 
 
 #------------------------------------------------------------------------
@@ -661,10 +676,11 @@ def sim_RunModal(
     nchkOkAll, nchkRmSel, ncRS, ncRA
 ):
     if not clk_fnd and not clk_clr and not clk_rst and not clk_rm and not clk_rs and not clk_ok and not clk_ra:
-        lg.info( f"[sim:RunModal] fnd[{clk_fnd}] clr[{clk_clr}] rst[{clk_rst}] rm[{clk_rm}] rs[{clk_rs}] ok[{clk_ok}] ra[{clk_ra}]" )
+        lg.info( f"[sim:RunModal] non clicked")
         return noUpd.by(5)
 
     trgId = getTrgId()
+    # if trgId: lg.info(f"[sim:RunModal] ---------->> trig: [ {trgId} ]")
 
     now = Now.fromDic(dta_now)
     cnt = Cnt.fromDic(dta_cnt)
@@ -733,10 +749,10 @@ def sim_RunModal(
 
     #------------------------------------------------------------------------
     elif trgId == k.btnRmSel:
-        assSel = ste.getSelected(now.sim.assCur)
+        ass = ste.getSelected(now.sim.assCur)
         assAll = now.sim.assCur
-        assKeep = [a for a in assAll if a.autoId not in {s.autoId for s in assSel}]
-        cnt = len(assSel)
+        assKeep = [a for a in assAll if a.autoId not in {s.autoId for s in ass}]
+        cnt = len(ass)
 
         lg.info(f"[sim:delSels] {cnt} assets selected")
 
@@ -764,16 +780,16 @@ def sim_RunModal(
 
     #------------------------------------------------------------------------
     elif trgId == k.btnOkSel:
-        assSel = ste.getSelected(now.sim.assCur)
+        ass = ste.getSelected(now.sim.assCur)
         assAll = now.sim.assCur
-        assOthers = [a for a in assAll if a.autoId not in {s.autoId for s in assSel}]
-        cnt = len(assSel)
+        assOthers = [a for a in assAll if a.autoId not in {s.autoId for s in ass}]
+        cnt = len(ass)
 
         lg.info(f"[sim:resolveSels] {cnt} assets selected")
 
         if cnt > 0:
             if db.dto.mrg.on:
-                errs = immich.validateKeepPaths(assSel)
+                errs = immich.validateKeepPaths(ass)
                 if errs:
                     nfy.error(f"Cannot merge: {errs[0]}")
                     return noUpd.by(5).upd(0, nfy)
@@ -787,7 +803,7 @@ def sim_RunModal(
             ]
 
             if db.dto.mrg.on:
-                mdl.msg.extend(_mkMrgMsg(assSel))
+                mdl.msg.extend(_mkMrgMsg(ass))
 
             if ncRS:
                 retTsk = mdl.mkTsk()
@@ -795,8 +811,8 @@ def sim_RunModal(
 
     #------------------------------------------------------------------------
     elif trgId == k.btnRmAll:
-        assSel = now.sim.assCur
-        cnt = len(assSel)
+        ass = now.sim.assCur
+        cnt = len(ass)
 
         lg.info(f"[sim:delAll] {cnt} assets to delete")
 
@@ -815,8 +831,8 @@ def sim_RunModal(
 
     #------------------------------------------------------------------------
     elif trgId == k.btnOkAll:
-        assSel = now.sim.assCur
-        cnt = len(assSel)
+        ass = now.sim.assCur
+        cnt = len(ass)
 
         lg.info(f"[sim:resolve] {cnt} assets")
 
@@ -843,41 +859,29 @@ def sim_RunModal(
 
         lg.info(f"[thMin] min[{thMin}] max[1.0]")
 
-        asset: Optional[models.Asset] = None
+        dstAss: Optional[models.Asset] = None
 
+        #------------------------------------------------
         # asset from url
-        isFromUrl = False
-        if now.sim.assFromUrl:
-            assSel = now.sim.assFromUrl  #consider read from db again?
-            if assSel:
-                if assSel.simOk != 1:
-                    lg.info(f"[sim] use selected asset id[{assSel.id}]")
-                    asset = assSel
-                    isFromUrl = True
-                else:
-                    nfy.info(f"[sim] the asset #{assSel.autoId} already resolved")
-                    now.sim.assFromUrl = None
-                    return noUpd.by(5).upd( 0, [nfy, now] )
-            else:
-                nfy.warn(f"[sim] not found dst assetId[{now.sim.assFromUrl}]")
-                now.sim.assFromUrl = None
-                return noUpd.by(5).upd( 0, [nfy, now] )
+        #------------------------------------------------
+        if now.sim.aidUrl and now.sim.assAid and trgId != "sim-btn-fnd":
+            dstAss = db.pics.getByAutoId(now.sim.assAid)
 
+        #------------------------------------------------
         # find from db
-        if not asset:
-            assSel = db.pics.getAnyNonSim()
-            if assSel:
-                asset = assSel
-                lg.info(f"[sim] found non-simOk #{assSel.autoId} assetId[{assSel.id}]")
+        #------------------------------------------------
+        if not dstAss:
+            ass = db.pics.getAnyNonSim()
+            if ass:
+                dstAss = ass
+                lg.info(f"[sim] found non-simOk #{ass.autoId} assetId[{ass.id}]")
 
-        if not isFromUrl:
-            now.sim.clearAll()
-            retNow = now
+        now.sim.clearAll()
 
-        if not asset:
+        if not dstAss:
             nfy.warn(f"[sim] not any asset to find..")
         else:
-            now.sim.assAid = asset.autoId
+            now.sim.assAid = dstAss.autoId
 
             mdl.id = ks.pg.similar
             mdl.cmd = ks.cmd.sim.fnd
@@ -933,13 +937,10 @@ def sim_FindSimilar(doReport: IFnProg, sto: models.ITaskStore):
 
     thMin = co.vad.float(thMin, 0.9)
 
-    isFromUrl = now.sim.assFromUrl is not None and now.sim.assFromUrl.autoId is not None
+    fromUrl = now.sim.assAid > 0 and now.sim.assAid == now.sim.aidUrl
 
-    lg.info(f"[sim:fs] config maxItems[{maxItems}]")
+    lg.info(f"[sim:fs] config maxItems[{maxItems}] fromUrl[{fromUrl}]")
 
-    # Clear URL guidance to avoid duplicate searches
-    if now.sim.assFromUrl:
-        now.sim.assFromUrl = None
 
     try:
         lg.info(f"[sim:fs] now.sim.assAid[{now.sim.assAid}]")
@@ -955,10 +956,11 @@ def sim_FindSimilar(doReport: IFnProg, sto: models.ITaskStore):
             raise e
 
         # search
-        grps = sim.searchBy(asset, doReport, sto.isCancelled, isFromUrl)
+        grps = sim.searchBy(asset, doReport, sto.isCancelled, fromUrl)
 
         if not grps:
             nfy.info(f"No similar Threshold[{thMin}] groups found for asset #{asset.autoId}")
+            now.sim.assCur = []
             return sto, f"No similar Threshold[{thMin}] groups found for asset #{asset.autoId}"
 
         if not grps[0].assets:
@@ -1053,7 +1055,6 @@ def sim_ClearSims(doReport: IFnProg, sto: models.ITaskStore):
 
         doReport(90, "Updating dynamic data...")
 
-        now.sim.assFromUrl = None
         now.sim.clearAll()
         sto.ste.clear()
 

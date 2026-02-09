@@ -71,7 +71,7 @@ const Ste = window.Ste = {
 
 		if ( cbx ) {
 			cbx.checked = isSelected
-			console.info( `[updCss] aid[${aid}] cbx.checked[${isSelected}]` )
+			// console.info( `[updCss] aid[${aid}] cbx.checked[${isSelected}]` )
 		}
 		return isSelected && !!cbx
 	},

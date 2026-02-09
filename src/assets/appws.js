@@ -99,15 +99,15 @@ const TskWS = {
 		this.fnConned()
 	},
 
-	onError(error){
-		console.error('[wst] Error:', error)
+	onError(ex){
+		console.error(`[wst] Error: ${ex.message}`)
 		this.clearCnnTimeout()
 		this.isConnecting = false
 		this.isConnected = false
 
-		this.updStoreWs({err: typeof error === 'string' ? error : 'Connection error'})
+		this.updStoreWs({err: typeof ex === 'string' ? ex : 'Connection error'})
 		//notify('❌ WebSocket connection failed. Task functionality is unavailable.', 'error')
-		this.fnErroed(typeof error === 'string' ? error : error?.message || 'Connection error')
+		this.fnErroed(typeof ex === 'string' ? ex : ex?.message || 'Connection error')
 		this.schedule()
 	},
 
