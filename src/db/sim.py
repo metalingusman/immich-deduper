@@ -99,7 +99,7 @@ def findCandidate(autoId: int, taskArgs: dict) -> models.Asset:
 
     if not asset: raise RuntimeError(f"[sim:fnd] not found asset #{autoId}")
 
-    if asset.simGIDs: raise RuntimeError(f"[sim:fnd] asset #{asset.autoId} already searched, please clear All Records first")
+    if db.pics.hasSimGIDs(asset.autoId): raise RuntimeError(f"[sim:fnd] asset #{asset.autoId} already searched, please clear All Records first")
 
     return asset
 

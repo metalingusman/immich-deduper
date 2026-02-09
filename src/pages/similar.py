@@ -318,30 +318,33 @@ def sim_onPagerChanged(dta_pgr, dta_now):
     [
         out(ks.sto.now, "data", allow_duplicate=True),
         out(ks.sto.tsk, "data", allow_duplicate=True),
+        out(ks.sto.nfy, "data", allow_duplicate=True),
     ],
     inp(k.assFromUrl, "data"),
     [
         ste(ks.sto.now, "data"),
+        ste(ks.sto.nfy, "data"),
     ],
     prevent_initial_call="initial_duplicate"
 )
-def sim_SyncUrlAssetToNow(dta_ass, dta_now):
+def sim_SyncUrlAssetToNow(dta_ass, dta_now, dta_nfy):
     now = Now.fromDic(dta_now)
+    nfy = Nfy.fromDic(dta_nfy)
 
     if not dta_ass:
-        if not now.sim.assFromUrl: return noUpd.by(2)
+        if not now.sim.assFromUrl: return noUpd.by(3)
 
         patch = dash.Patch()
         patch['sim']['assFromUrl'] = None
-        return patch, noUpd
+        return patch, noUpd, noUpd
 
     ass = models.Asset.fromDic(dta_ass)
 
     lg.info(f"[sim:sync] asset from url: #{ass.autoId} id[{ass.id}] simOk[{ass.simOk}]")
 
     if ass.simOk == 1:
-        lg.info(f'[sim:sync] ignore searched #{ass.autoId}')
-        return noUpd.by(2)
+        nfy.info(f'[sim:sync] ignore resolved #{ass.autoId}')
+        return noUpd, noUpd, nfy.toDict()
 
 
     now.sim.assFromUrl = ass
@@ -356,7 +359,7 @@ def sim_SyncUrlAssetToNow(dta_ass, dta_now):
 
     lg.info(f"[sim:sync] to task: {tsk}")
 
-    return now.toDict(), tsk.toDict()
+    return now.toDict(), tsk.toDict(), noUpd
 
 
 #------------------------------------------------------------------------
@@ -505,13 +508,15 @@ ccbk(
         inp(ks.sto.now, "data"),
         inp(ks.sto.ste, "data"),
         inp(ks.sto.cnt, "data"),
+        inp(ks.sto.tsk, "data"),
     ],
     prevent_initial_call="initial_duplicate"
 )
-def sim_UpdateButtons(dta_now, dta_ste, dta_cnt):
+def sim_UpdateButtons(dta_now, dta_ste, dta_cnt, dta_tsk):
     now = Now.fromDic(dta_now)
     ste = Ste.fromDic(dta_ste) if dta_ste else Ste()
     cnt = Cnt.fromDic(dta_cnt)
+    tsk = Tsk.fromDic(dta_tsk)
 
     from mod.mgr.tskSvc import mgr
     isTaskRunning = False
@@ -520,6 +525,7 @@ def sim_UpdateButtons(dta_now, dta_ste, dta_cnt):
             if info.status.value in ['pending', 'running']:
                 isTaskRunning = True
                 break
+    if tsk.id and tsk.cmd: isTaskRunning = True
 
     cntNo = cnt.ass - cnt.simOk if cnt else 0
     cntPn = cnt.simPnd if cnt else 0
