@@ -38,8 +38,9 @@ RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python
 COPY requirements*.txt ./
 
 # Install dependencies using blackwell requirements (CUDA 12.8 + PyTorch nightly)
+# --ignore-installed bypasses distutils-installed packages in the base image
 RUN --mount=type=cache,target=/root/.cache \
-    pip install -r requirements-blackwell.txt
+    pip install --ignore-installed -r requirements-blackwell.txt
 
 COPY src/ ./src/
 
