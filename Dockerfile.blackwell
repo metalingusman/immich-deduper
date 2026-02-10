@@ -1,0 +1,49 @@
+# syntax = docker/dockerfile:1.5
+#
+# Dockerfile for NVIDIA Blackwell GPUs (RTX 5090, sm_120)
+# Uses CUDA 12.8 runtime with PyTorch nightly
+#
+
+FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
+
+WORKDIR /app
+
+ARG DEDUP_PORT=8086
+ENV PORT=${DEDUP_PORT}
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install Python 3.12 and dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
+    python3.12-dev \
+    python3-pip \
+    libimage-exiftool-perl \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
+
+# Upgrade pip
+RUN python -m pip install --upgrade pip
+
+# Copy requirements files
+COPY requirements*.txt ./
+
+# Install dependencies using blackwell requirements (CUDA 12.8 + PyTorch nightly)
+RUN --mount=type=cache,target=/root/.cache \
+    pip install -r requirements-blackwell.txt
+
+COPY src/ ./src/
+
+EXPOSE ${PORT}
+HEALTHCHECK CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}', timeout=3)" || exit 1
+
+CMD ["python", "-m", "src.app"]
