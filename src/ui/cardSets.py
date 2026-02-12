@@ -88,7 +88,7 @@ optExclLess = [{"label": "--", "value": 0}]
 for i in range(1,6): optExclLess.append({"label": f" < {i}", "value": i})
 
 optExclOver = [{"label": "--", "value": 0}]
-for i in [10,20,30,50,100]: optExclOver.append({"label": f" > {i}", "value": i})
+for i in [3,5,10,20,30,50,100]: optExclOver.append({"label": f" > {i}", "value": i})
 
 optGpuBatch = {}
 for i in [1, 2, 4, 8, 12, 16, 24, 32, 48, 64]: optGpuBatch[str(i)] = i

@@ -277,7 +277,15 @@ def fetchLibraries() -> List[models.Library]:
 	except Exception as e: raise RuntimeError(f"Failed to fetch libraries: {e}")
 
 
+cacheUsrs: List[models.Usr] = []
+def getUsrName(uid):
+	for u in cacheUsrs:
+		if str(u.id) == str(uid): return u.name
+	return str(uid)[:8]
+
+
 def fetchUsers() -> List[models.Usr]:
+	global cacheUsrs
 	try:
 		sch = getSchema()
 		with mkConn() as conn:
@@ -291,6 +299,8 @@ def fetchUsers() -> List[models.Usr]:
 				for u in usrs: nams.append(u.name)
 
 				lg.info(f"[psql] fetch users[{len(usrs)}] {nams}")
+
+				if len(cacheUsrs) != len(usrs): cacheUsrs = usrs
 
 				return usrs
 	except Exception as e: raise mkErr("Failed to fetch users", e)

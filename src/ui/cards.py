@@ -1,4 +1,4 @@
-from os import wait
+from os import wait, path
 from typing import List
 
 from dash_bootstrap_components import ListGroup
@@ -131,6 +131,11 @@ def mk(ass: models.Asset, modSim=True):
 					], className='tag', **{'data-tip-id': f'facs-{ass.autoId}'}) if ex else None, #type: ignore
 				], className="RT"),
 				htm.Div([
+					htm.Span([
+						htm.I(className='bi bi-person-circle'),
+						f'{db.psql.getUsrName(ass.ownerId)}'
+					], className='tag'),
+					# htm.Span(f" {}", className="tag"),
 				], className="LB"),
 				htm.Div([
 
@@ -140,10 +145,10 @@ def mk(ass: models.Asset, modSim=True):
 			], className="viewer"),
 			dbc.CardBody([
 				dbc.Row([
-					htm.Span("id"), htm.Span(f"{ass.id}", className="tag"),
+					htm.Span("immich id"), htm.Span(f"{ass.id}", className="tag"),
 					htm.Span("device"), htm.Span(f"{ass.deviceId}", className="tag second"),
+					htm.Span("Path"), htm.Span(f"{path.dirname(ass.originalPath)}", className="tag second multiline"),
 					htm.Span("File"), htm.Span(f"{ass.originalFileName}", className="tag second multiline"),
-					htm.Span("Path"), htm.Span(f"{ass.originalPath}", className="tag second multiline"),
 					htm.Span("CreateAt"), htm.Span(f"{ass.fileCreatedAt}", className="tag second"),
 
 					*([htm.Span("livePhoto"), htm.Span(f"{ass.pathVdo}", className="tag blue"),] if isLive else []),
@@ -209,25 +214,15 @@ def mk(ass: models.Asset, modSim=True):
 						placement="auto",
 					) if ex and ex.stackAssets else None,
 
-
-					#
-					# htm.Span([
-					#     htm.I(className='bi bi-bookmark-check-fill'),
-					#     f'{len(ex.tags)}'
-					# ], className='tag') if ex else None,
-					#
 					# htm.Span([
 					#     htm.I(className='bi bi-person-bounding-box'),
 					#     f'{len(ex.tags)}'
 					# ], className='tag') if ex else None,
 
-					htm.Span([
-						'GIDs: ',
-						*[htm.Span(i) for i in ass.simGIDs],
-					], className='tag info') if ass.simGIDs else None,
-
-					# htm.Span(f'', className=''),
-
+					# htm.Span([
+					# 	'GIDs: ',
+					# 	*[htm.Span(i) for i in ass.simGIDs],
+					# ], className='tag info') if ass.simGIDs else None,
 
 				], className=f'tagbox'),
 

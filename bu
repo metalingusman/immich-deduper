@@ -65,7 +65,7 @@ def updateConfVer(scriptDir, ver):
 		return
 
 	orig = confPy.read_text()
-	updated = re.sub(r"version='[^']*'", f"version='{ver}'", orig)
+	updated = re.sub(r"version\s*=\s*'[^']*'", f"version = '{ver}'", orig)
 	if orig == updated:
 		print(f"Version in src/conf.py already {ver}, skipping...")
 		return
