@@ -126,6 +126,14 @@ When deleting duplicates, Metadata Merge can transfer metadata from deleted phot
   - Starts searching for the next photo that matches your `Threshold Min` settings and shows it in the `current` tab
   - When photo groups appear in the `current` tab, you can click on a photo's header to select it. This lights up the four action buttons on the top right. After using one of these actions, the kept photos in that group will be marked as resolved
   - If you don't do anything with a searched group, it'll show up in the `pending` tab waiting for you to handle it later
+  - `Auto Find Next`: When enabled, resolving or deleting the current group automatically triggers a search for the next unprocessed photo. When disabled, the system switches to the `pending` tab after each action, letting you work through all found groups before searching again
+  - You can always manually switch to the `pending` tab to review and process previously found groups
+
+- `Workflow`
+  - Press `Find Similar` to search a batch of groups
+  - Process groups in both `current` and `pending` tabs
+  - Press `Find Similar` again to search the next batch
+  - Repeat until all photos are processed
 
 - `Clear records & Keep resolved`
   - Clears out search records that haven't been resolved yet
@@ -162,11 +170,12 @@ When deleting duplicates, Metadata Merge can transfer metadata from deleted phot
 
 - `Related Tree`
   - **Only available in single group mode (when Multi Mode is off)**
-  - When `Related Tree` is off, `Find Similar` only shows photos directly related to the main photo
-  - Turn it on and it'll also search for photos related to those related photos, creating a comprehensive similarity tree
-  - **Cannot be used together with Multi Mode for performance and clarity reasons**
-  - `MaxItems` limits how deep the search goes. Say you set the threshold to `(0.5, 1)` - that might trigger endless searching if you have 100k photos, so this cap keeps things under control
-  - Note: The number of photos directly related to the main photo isn't limited by `MaxItems`
+  - When off, `Find Similar` only shows photos directly similar to the main photo
+  - When on, it also searches each similar photo for their own similars, and continues expanding outward. This builds a connected chain: A→B→C→D, where A and D may not be directly similar but are linked through B and C
+  - Best for: burst shots, gradually changing scenes, or edited versions where consecutive photos look alike but the first and last don't
+  - Indirect matches (photos not directly similar to the main one) are visually marked in the grid
+  - `MaxItems` caps the total number of photos in the tree. With low thresholds like 0.5, the search could snowball across thousands of photos without this limit
+  - Note: Photos directly similar to the main photo are always included regardless of `MaxItems`
 
 **Mode Selection**: Choose Single Mode + Related Tree for comprehensive similarity trees, or Multi Mode for quick processing of multiple separate groups.
 
